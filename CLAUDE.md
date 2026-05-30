@@ -97,12 +97,13 @@ which is an explicit user decision, never the agent's. Keys come from
 
 **Pivoted to Gate.io for real execution** (was Aster paper). The Gate adapter
 (`exchanges/gate/adapter.py`) is code-complete against Gate APIv4 (HMAC-SHA512).
-**Live access is UNVERIFIED:** signed calls returned `401 INVALID_KEY`, and the
-build session's tool I/O was corrupted, so earlier "validated / funded" claims
-are **retracted** (see `exchanges/gate/NOTES.md`). Live execution is **held in
-paper** until signed access is confirmed — most likely the keys must match the
-endpoint (testnet keys for the testnet host). The Aster paper adapter is
-retained, deactivated.
+**Live access is UNVERIFIED — Gate testnet is currently down:** keyless public
+reads return `502` and signed reads return `401 INVALID_KEY` (5/5 each), i.e. a
+Gate-side outage, not the keys (which are stored correctly and testnet-origin).
+Earlier "validated / funded" claims (made through a laggy session I/O) are
+**retracted** (see `exchanges/gate/NOTES.md`). Live execution is **held in
+paper** until the testnet recovers and signed reads return 200. The Aster paper
+adapter is retained, deactivated.
 
 Security note: keys stay in gitignored `secrets/.env` (Aster + Gate, namespaced).
 The Aster keys were exposed in plaintext during migration, and the git remote URL

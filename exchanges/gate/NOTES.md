@@ -21,19 +21,19 @@ interface in `../INTERFACE.md`. Live execution is **held in paper**
 - Symbols use underscores (`BTC_USDT`); order size is in *contracts*. The adapter
   converts coin qty <-> contracts via each contract's `quanto_multiplier`.
 
-## Blocker: 401 INVALID_KEY on signed calls (testnet endpoint)
-Signed requests to `fx-api-testnet.gateio.ws` returned `401 {"label":
-"INVALID_KEY"}`. INVALID_KEY means the API key string is not recognized by THIS
-endpoint (it is not a signature error). Most likely cause: **the keys were
-generated for a different Gate environment than the one being hit.** Gate keeps
-these separate:
-  - Futures **testnet** keys (created on Gate's testnet site) work only on
-    `fx-api-testnet.gateio.ws`.
-  - **Mainnet** keys (gate.com) work only on `api.gateio.ws`.
-  - Gate **"Demo Trading"** is yet another context.
-Resolve by confirming where the "Demo" keys were created, then set `network:`
-(and thus the base URL) to match. (A secondary possibility is an IP allowlist on
-the key.)
+## Blocker: Gate futures testnet appears DOWN
+Diagnostic (5x each, all consistent):
+  - public `…/contracts/BTC_USDT`  -> HTTP **502** (openresty gateway)  x5
+  - signed `…/accounts` (balance)  -> HTTP **401 INVALID_KEY**          x5
+
+Keyless public reads failing with 502 means the testnet gateway/backend itself
+is unhealthy; the persistent 401 is most likely a symptom of that outage, not a
+bad key. The keys are stored correctly and are testnet-origin (user-confirmed),
+so the host matches.
+
+Action: retry when the testnet recovers (public reads return 200). If signed
+calls STILL 401 *after* public reads succeed, THEN it's a key issue — check the
+testnet API key's Futures permission + IP allowlist, or regenerate it.
 
 ## To validate (in a healthy session, once keys/endpoint match)
 1. `balance` / `positions` (signed reads) — confirm `200`, not `401`.
