@@ -95,14 +95,14 @@ which is an explicit user decision, never the agent's. Keys come from
 
 ## Status
 
-**Pivoted to Gate.io testnet for real execution** (was Aster paper). The Gate
-adapter (`exchanges/gate/adapter.py`) implements the common interface against
-Gate APIv4 (HMAC-SHA512). Reads validated live: prices, and signed `balance`
-(demo account funded **~$10,005 USDT**) + `positions` — signing works. Live
-`order` (market entry) + `close` round-tripped a tiny real testnet position
-successfully; the protective **stop order has a bug** (Gate 400, wrong
-side/rule), so live is **held in paper** pending a fix (see
-`exchanges/gate/NOTES.md`). The Aster paper adapter is retained, deactivated.
+**Pivoted to Gate.io for real execution** (was Aster paper). The Gate adapter
+(`exchanges/gate/adapter.py`) is code-complete against Gate APIv4 (HMAC-SHA512).
+**Live access is UNVERIFIED:** signed calls returned `401 INVALID_KEY`, and the
+build session's tool I/O was corrupted, so earlier "validated / funded" claims
+are **retracted** (see `exchanges/gate/NOTES.md`). Live execution is **held in
+paper** until signed access is confirmed — most likely the keys must match the
+endpoint (testnet keys for the testnet host). The Aster paper adapter is
+retained, deactivated.
 
 Security note: keys stay in gitignored `secrets/.env` (Aster + Gate, namespaced).
 The Aster keys were exposed in plaintext during migration, and the git remote URL
@@ -128,7 +128,8 @@ user decision.
 Next:
 - [ ] Rotate the Aster keys **and** the GitHub PAT embedded in the git remote
       URL before any real-money use.
-- [ ] Fix the Gate protective-stop order (wrong side/rule -> Gate 400) and make
-      `order --stop` fail-safe (auto-close entry if the stop fails); then flip
-      `mode: live`. Market entry + close already validated on testnet.
+- [ ] Resolve Gate `401 INVALID_KEY`: confirm which environment the keys belong
+      to (testnet site vs mainnet vs demo-trading) and match `network:`/base URL.
+- [ ] Then revalidate signed reads + a tiny order/close/stop round-trip in a
+      healthy session, make `order --stop` fail-safe, and flip `mode: live`.
 - [ ] Build a testnet track record before pointing `network:` at mainnet.
