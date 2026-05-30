@@ -25,7 +25,8 @@ holds; that is correct, not failure.
 
 These are not discretionary. The autonomy lives *inside* these limits.
 
-1. Symbols: BTCUSDT, ETHUSDT, SOLUSDT perpetuals (Aster).
+1. Symbols: BTC, ETH, SOL USDT perpetuals — the active exchange's native symbols
+   (see `exchanges/EXCHANGE_CONFIG.md`; currently Gate `BTC_USDT` etc.).
 2. Max leverage: 20x.
 3. Max risk per trade: **2% of equity**. Size so (entry→stop distance) × size ≤ 2% equity.
 4. Max open positions: 2 — one per asset.
@@ -52,5 +53,7 @@ These are not discretionary. The autonomy lives *inside* these limits.
 
 ## Mode
 
-Paper by default (simulate fills at real prices). Live places real orders; switch
-only on explicit user instruction via `exchanges/EXCHANGE_CONFIG.md`.
+Set in `exchanges/EXCHANGE_CONFIG.md`. Currently **Gate.io `mode: live`,
+`network: testnet`** — real order execution against demo funds (no real money).
+`paper` simulates fills at real prices; `network: mainnet` is real money and only
+ever on explicit user instruction.

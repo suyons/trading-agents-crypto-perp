@@ -9,8 +9,9 @@ structure as hard dependencies:
 
 - **The runtime.** Migrated from OpenClaw (Gemini 3.1 Pro) → Claude Code. May
   change again. Don't bake `claude`/`openclaw` into file or module names.
-- **The exchange.** Currently Aster DEX. Binance / Bybit / Gate must be a
-  one-file swap (see `exchanges/`), never a rename or a refactor.
+- **The exchange.** Currently Gate.io futures (testnet); the Aster adapter is
+  retained but deactivated. Binance / Bybit / others must be a one-file swap
+  (see `exchanges/`), never a rename or a refactor.
 
 ## Orchestration model
 
@@ -58,8 +59,9 @@ the above from those files (strategy, exchange config, state) — **except keys.
 
 **Fully autonomous, Claude-driven — no technical indicators.** Each cycle the
 trader reasons over real market data (price, 24h range, funding, raw price
-action, optional news) and decides discretionarily. Unproven by design. Paper
-mode. Starting capital $1000. Pairs BTC/ETH/SOL USDT perps (Aster).
+action, optional news) and decides discretionarily. Unproven by design.
+**Live execution on Gate.io testnet** (demo funds, ~$10k). Pairs BTC/ETH/SOL
+USDT perps.
 
 Risk guardrails (hard limits the autonomy lives inside):
 - Max leverage 20x · max 2 open positions (1/asset) · risk ≤2% equity/trade
@@ -69,10 +71,17 @@ Risk guardrails (hard limits the autonomy lives inside):
 
 ## Modes
 
-Both paper and live read **real** market data (prices, funding, volume). The
-only difference: live places real orders; paper simulates fills at real prices.
-Default and current mode is **paper**. Switching to live = flip
-`EXCHANGE_CONFIG.md` mode and confirm; keys are read from `secrets/.env`.
+Two independent switches in `EXCHANGE_CONFIG.md`:
+
+- **mode** — `live` places real orders via the adapter; `paper` simulates fills
+  at real prices (local-memory only). Both read real market data.
+- **network** (exchanges that have a testnet, e.g. Gate) — `testnet` uses demo
+  funds (no real money); `mainnet` is real money.
+
+**Current: Gate.io, `mode: live`, `network: testnet`** — real order execution
+against demo funds. Going to real money = `network: mainnet` (+ rotated keys),
+which is an explicit user decision, never the agent's. Keys come from
+`secrets/.env`.
 
 ## Secrets & safety — read before committing
 
@@ -86,15 +95,19 @@ Default and current mode is **paper**. Switching to live = flip
 
 ## Status
 
-Migrated and operational. Aster adapter built (`exchanges/aster/adapter.py`)
-against the common interface (`exchanges/INTERFACE.md`); public + signed
-endpoints verified live (real account balance is $0 — paper uses the $1000 sim).
-Strategy is the autonomous, no-indicator approach. Baseline committed under
-`suyons`. First paper decision cycle logged in `state/TRADE_LOG.md`.
+**Pivoted to Gate.io testnet for real execution** (was Aster paper). The Gate
+adapter (`exchanges/gate/adapter.py`) implements the common interface against
+Gate APIv4 (HMAC-SHA512). Reads validated live: prices, and signed `balance`
+(demo account funded **~$10,005 USDT**) + `positions` (empty) — signing works.
+Order/close/stop/cancel are wired but **not yet round-trip validated**: Gate
+testnet was throwing intermittent `502`s during setup. The Aster paper adapter
+is retained, deactivated.
 
-Security note: keys stay in gitignored `secrets/.env`. The Aster keys were
-exposed in plaintext during migration, and the git remote URL embeds a GitHub
-PAT — rotate both before any real-money use. Paper mode is the safe default.
+Security note: keys stay in gitignored `secrets/.env` (Aster + Gate, namespaced).
+The Aster keys were exposed in plaintext during migration, and the git remote URL
+embeds a GitHub PAT — rotate both before any real-money use. The Gate keys are
+testnet/demo (no real money). Real money requires `network: mainnet`, an explicit
+user decision.
 
 ## TODO
 
@@ -114,4 +127,6 @@ PAT — rotate both before any real-money use. Paper mode is the safe default.
 Next:
 - [ ] Rotate the Aster keys **and** the GitHub PAT embedded in the git remote
       URL before any real-money use.
-- [ ] Let the autonomous strategy build a paper track record before going live.
+- [ ] Validate the Gate live order round-trip (`order`/`close`/`stop`/`cancel`)
+      — built and reads-verified, but a clean test was blocked by testnet 502s.
+- [ ] Build a testnet track record before pointing `network:` at mainnet.

@@ -32,11 +32,19 @@ context it reasons over.
 |-----------|--------|
 | `balance`   | `[ {asset, balance, availableBalance}, ... ]` |
 | `positions` | `[ {symbol, positionAmt, entryPrice, markPrice, unRealizedProfit, leverage}, ... ]` |
-| `order <SYMBOL> <BUY\|SELL> <QTY> [--type MARKET\|LIMIT] [--price P] [--stop S] [--reduce-only] [--force]` | exchange order response |
+| `order <SYMBOL> <BUY\|SELL> <QTY> [--type MARKET\|LIMIT] [--price P] [--stop S] [--reduce-only] [--force]` | exchange order response (incl. `stop` order if `--stop` given) |
+| `close <SYMBOL> [--force]` | closes the open position on `SYMBOL` (reduce-only) |
+| `stop <SYMBOL> <TRIGGER> [--force]` | reduce-only protective stop; side/size inferred from the open position |
+| `cancel <SYMBOL> [--force]` | cancel resting + price-triggered orders on `SYMBOL` |
 
 `order` (and any write) **refuses to run unless `EXCHANGE_CONFIG.md` mode is
 `live`** — pass `--force` to override. Paper mode never places real orders; the
 trader simulates fills at the real price from `price`/`snapshot`.
+
+## Optional config keys an adapter may honor
+
+- `network: testnet|mainnet` — for exchanges with a test environment (e.g. Gate).
+  The adapter picks the base URL from this; defaults to the safe one (testnet).
 
 ## Symbol normalization
 
