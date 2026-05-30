@@ -98,10 +98,11 @@ which is an explicit user decision, never the agent's. Keys come from
 **Pivoted to Gate.io testnet for real execution** (was Aster paper). The Gate
 adapter (`exchanges/gate/adapter.py`) implements the common interface against
 Gate APIv4 (HMAC-SHA512). Reads validated live: prices, and signed `balance`
-(demo account funded **~$10,005 USDT**) + `positions` (empty) — signing works.
-Order/close/stop/cancel are wired but **not yet round-trip validated**: Gate
-testnet was throwing intermittent `502`s during setup. The Aster paper adapter
-is retained, deactivated.
+(demo account funded **~$10,005 USDT**) + `positions` — signing works. Live
+`order` (market entry) + `close` round-tripped a tiny real testnet position
+successfully; the protective **stop order has a bug** (Gate 400, wrong
+side/rule), so live is **held in paper** pending a fix (see
+`exchanges/gate/NOTES.md`). The Aster paper adapter is retained, deactivated.
 
 Security note: keys stay in gitignored `secrets/.env` (Aster + Gate, namespaced).
 The Aster keys were exposed in plaintext during migration, and the git remote URL
@@ -127,6 +128,7 @@ user decision.
 Next:
 - [ ] Rotate the Aster keys **and** the GitHub PAT embedded in the git remote
       URL before any real-money use.
-- [ ] Validate the Gate live order round-trip (`order`/`close`/`stop`/`cancel`)
-      — built and reads-verified, but a clean test was blocked by testnet 502s.
+- [ ] Fix the Gate protective-stop order (wrong side/rule -> Gate 400) and make
+      `order --stop` fail-safe (auto-close entry if the stop fails); then flip
+      `mode: live`. Market entry + close already validated on testnet.
 - [ ] Build a testnet track record before pointing `network:` at mainnet.
