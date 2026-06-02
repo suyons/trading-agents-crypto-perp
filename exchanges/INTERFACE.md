@@ -32,10 +32,11 @@ context it reasons over.
 |-----------|--------|
 | `balance`   | `[ {asset, balance, availableBalance}, ... ]` |
 | `positions` | `[ {symbol, positionAmt, entryPrice, markPrice, unRealizedProfit, leverage}, ... ]` |
-| `order <SYMBOL> <BUY\|SELL> <QTY> [--type MARKET\|LIMIT] [--price P] [--stop S] [--reduce-only] [--force]` | exchange order response (incl. `stop` order if `--stop` given) |
+| `order <SYMBOL> <BUY\|SELL> <QTY> [--type MARKET\|LIMIT] [--price P] [--stop S] [--tp T] [--reduce-only] [--force]` | exchange order response, incl. `stop` and/or `take_profit` orders when `--stop`/`--tp` given. If `--stop` fails the entry is auto-closed (fail-safe); if `--tp` fails the entry stays (the stop still protects it). |
 | `close <SYMBOL> [--force]` | closes the open position on `SYMBOL` (reduce-only) |
-| `stop <SYMBOL> <TRIGGER> [--force]` | reduce-only protective stop; side/size inferred from the open position |
-| `cancel <SYMBOL> [--force]` | cancel resting + price-triggered orders on `SYMBOL` |
+| `stop <SYMBOL> <BUY\|SELL> <TRIGGER> [--force]` | reduce-only protective stop; `BUY`/`SELL` = the ENTRY side it protects (BUY=long) |
+| `tp <SYMBOL> <BUY\|SELL> <TRIGGER> [--force]` | reduce-only take-profit; `BUY`/`SELL` = the ENTRY side it closes (BUY=long) |
+| `cancel <SYMBOL> [--force]` | cancel resting + price-triggered orders (stops AND take-profits) on `SYMBOL` |
 
 `order` (and any write) **refuses to run unless `EXCHANGE_CONFIG.md` mode is
 `live`** — pass `--force` to override. Paper mode never places real orders; the

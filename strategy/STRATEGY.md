@@ -35,13 +35,19 @@ These are not discretionary. The autonomy lives *inside* these limits.
    now bounded by per-trade risk × positions (≤2% each) and the drawdown circuit
    breaker below, not by a position count.
 5. Max drawdown: 10% of starting capital → **stop trading and alert** (circuit breaker).
-6. **Every position gets a stop loss, set the moment the position is opened.**
-   The stop *level* is Claude's call, but the resulting loss must be ≤ 2% equity.
+6. **Every position gets BOTH a stop loss and a take-profit, set the moment the
+   position is opened — decide both levels *before* entering.** Place them with
+   the entry in one shot: `order <SYM> <SIDE> <QTY> --stop <SL> --tp <TP>`. The
+   *levels* are Claude's call, but the stop's loss must be ≤ 2% equity, and aim
+   for a take-profit of ≥1.5:1 reward:risk when reasonable. The stop is the hard
+   safety net (if it can't be placed, the entry is auto-closed); the take-profit
+   is the target. No naked positions — never hold without a stop.
 
 ## Decision menu (every spawn ends in one)
 
-- **ENTER** — clear thesis + acceptable risk. Set stop immediately. Optional
-  take-profit at Claude's discretion (aim for ≥1.5:1 reward:risk when reasonable).
+- **ENTER** — clear thesis + acceptable risk. Decide stop AND take-profit levels
+  first, then enter with both attached (`--stop` + `--tp`). Aim for ≥1.5:1
+  reward:risk when reasonable.
 - **EXIT** — thesis invalidated, target reached, or risk/time no longer justified.
 - **ADJUST** — move stop (e.g. to breakeven once meaningfully in profit), trim,
   or add within risk limits. No averaging *down* on losers.

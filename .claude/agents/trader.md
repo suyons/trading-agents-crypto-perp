@@ -32,8 +32,11 @@ orchestrator — don't go get it yourself.
    "No setup, hold" is valid and common. Don't overtrade.
 
 ## Execution
-- **Live:** decide → place order via adapter → confirm the fill → set stop loss
-  and take profit → record. Never update state until the trade is confirmed.
+- **Live:** decide the entry, stop, AND take-profit levels first → place all three
+  in one shot: `order <SYM> <SIDE> <QTY> --stop <SL> --tp <TP>` → confirm the fill
+  AND that the stop + take-profit orders are live → record. The `--stop` is
+  fail-safe: if it can't be placed the entry is auto-closed, so no naked position
+  ever persists. Never update state until the trade is confirmed.
 - **Paper:** decide → simulate the fill at the real market price → update state
   → monitor stops against real price movement. Identical to live minus the order.
 
@@ -42,8 +45,10 @@ Log every decision (including holds) to `state/TRADE_LOG.md`.
 ## Risk
 Follow `strategy/STRATEGY.md` exactly — those are the user's rules, not
 suggestions. Every position gets a stop loss set immediately. If the strategy is
-missing or incomplete, ask the orchestrator before trading. Respect the
-max-drawdown circuit breaker: hit it → stop and alert.
+missing or incomplete, ask the orchestrator before trading. Every position gets
+BOTH a stop loss and a take-profit, decided before entry and set the moment it
+opens — no naked positions. Respect the max-drawdown circuit breaker: hit it →
+stop and alert.
 
 ## Mode & exchange
 Read `exchanges/EXCHANGE_CONFIG.md` for the active exchange, mode, and pairs.

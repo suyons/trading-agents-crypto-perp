@@ -283,6 +283,7 @@ def cmd_order(args):
     if args.reduce_only:
         body["reduce_only"] = True
     result = {"entry": _signed("POST", f"/futures/{SETTLE}/orders", body_obj=body)}
+    entry_open = True
     if args.stop:
         # Fail-safe: a filled entry with no stop is an unprotected position.
         # If the stop can't be placed, immediately close the entry and report.
@@ -297,17 +298,35 @@ def cmd_order(args):
                 result["stop_error"] = (f"stop failed ({e!r}); entry auto-closed "
                                         f"to avoid an unprotected position")
                 result["auto_close"] = undo
+                entry_open = False
             except Exception as e2:
                 result["stop_error"] = (f"stop failed ({e!r}) AND auto-close failed "
                                         f"({e2!r}) -- POSITION MAY BE UNPROTECTED, "
                                         f"close {c} manually")
+    if args.tp and entry_open:
+        # Take-profit is a target, not a safety net (the stop protects the
+        # position), so a TP failure is reported but does NOT close the entry.
+        try:
+            result["take_profit"] = _place_tp(c, args.side.upper(), args.tp)
+        except Exception as e:
+            result["tp_error"] = (f"take-profit failed ({e!r}); position still "
+                                  f"protected by its stop")
     return result
 
 
-def _place_stop(contract, entry_side, trigger_price):
-    # Protective stop = reduce-only price-triggered close, opposite the entry.
-    # Long entry -> close when price falls (rule 2, <=); short -> rise (rule 1, >=).
+def _place_trigger(contract, entry_side, trigger_price, kind):
+    # Reduce-only price-triggered close, opposite the entry side.
+    #   stop-loss   : long -> close when price FALLS (rule 2, <=);
+    #                 short -> close when price RISES (rule 1, >=)
+    #   take-profit : long -> close when price RISES (rule 1, >=);
+    #                 short -> close when price FALLS (rule 2, <=)
     long = entry_side == "BUY"
+    if kind == "stop":
+        rule = 2 if long else 1
+    elif kind == "tp":
+        rule = 1 if long else 2
+    else:
+        raise ValueError(f"unknown trigger kind: {kind!r}")
     body = {
         "initial": {
             "contract": contract,
@@ -321,10 +340,18 @@ def _place_stop(contract, entry_side, trigger_price):
             "strategy_type": 0,
             "price_type": 0,
             "price": str(trigger_price),
-            "rule": 2 if long else 1,
+            "rule": rule,
         },
     }
     return _signed("POST", f"/futures/{SETTLE}/price_orders", body_obj=body)
+
+
+def _place_stop(contract, entry_side, trigger_price):
+    return _place_trigger(contract, entry_side, trigger_price, "stop")
+
+
+def _place_tp(contract, entry_side, trigger_price):
+    return _place_trigger(contract, entry_side, trigger_price, "tp")
 
 
 def cmd_close(args):
@@ -345,6 +372,12 @@ def cmd_stop(args):
     if _mode() != "live" and not args.force:
         raise SystemExit("Refusing to set stop: mode is not 'live'. Pass --force.")
     return _place_stop(normalize_symbol(args.symbol), args.side.upper(), args.price)
+
+
+def cmd_tp(args):
+    if _mode() != "live" and not args.force:
+        raise SystemExit("Refusing to set take-profit: mode is not 'live'. Pass --force.")
+    return _place_tp(normalize_symbol(args.symbol), args.side.upper(), args.price)
 
 
 def cmd_cancel(args):
@@ -383,7 +416,8 @@ def main(argv):
     sp.add_argument("qty")
     sp.add_argument("--type", default="MARKET")
     sp.add_argument("--price")
-    sp.add_argument("--stop")
+    sp.add_argument("--stop", help="protective stop-loss trigger price")
+    sp.add_argument("--tp", help="take-profit trigger price")
     sp.add_argument("--reduce-only", action="store_true")
     sp.add_argument("--force", action="store_true")
 
@@ -395,6 +429,13 @@ def main(argv):
     sp.add_argument("symbol")
     sp.add_argument("side", choices=["BUY", "SELL", "buy", "sell"],
                     help="the ENTRY side the stop protects (BUY=long)")
+    sp.add_argument("price")
+    sp.add_argument("--force", action="store_true")
+
+    sp = sub.add_parser("tp")
+    sp.add_argument("symbol")
+    sp.add_argument("side", choices=["BUY", "SELL", "buy", "sell"],
+                    help="the ENTRY side the take-profit closes (BUY=long)")
     sp.add_argument("price")
     sp.add_argument("--force", action="store_true")
 
