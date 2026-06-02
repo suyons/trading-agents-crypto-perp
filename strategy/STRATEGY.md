@@ -45,13 +45,22 @@ These are not discretionary. The autonomy lives *inside* these limits.
 
 ## Decision menu (every spawn ends in one)
 
-- **ENTER** — clear thesis + acceptable risk. Decide stop AND take-profit levels
-  first, then enter with both attached (`--stop` + `--tp`). Aim for ≥1.5:1
-  reward:risk when reasonable.
+Before acting, articulate the decision as a **falsifiable thesis + an explicit
+invalidation** (the concrete condition that proves it wrong). If you cannot state
+a clear invalidation, you do not have a trade — default to HOLD. Both are recorded
+in every `TRADE_LOG.md` entry (see its format). State the thesis as a claim you
+could be proven wrong on, not a vague lean; the invalidation must be observable
+(a price level / structural break), and for an ENTER it should line up with where
+the stop sits.
+
+- **ENTER** — clear thesis + explicit invalidation + acceptable risk. Decide stop
+  AND take-profit levels first, then enter with both attached (`--stop` + `--tp`).
+  Aim for ≥1.5:1 reward:risk when reasonable.
 - **EXIT** — thesis invalidated, target reached, or risk/time no longer justified.
 - **ADJUST** — move stop (e.g. to breakeven once meaningfully in profit), trim,
   or add within risk limits. No averaging *down* on losers.
-- **HOLD** — no clear edge, or already correctly positioned. The default.
+- **HOLD** — no clear edge, or already correctly positioned. The default. Still
+  state what you're watching: the concrete trigger that would create a setup.
 
 ## Discipline (what NOT to do)
 

@@ -40,7 +40,10 @@ orchestrator — don't go get it yourself.
 - **Paper:** decide → simulate the fill at the real market price → update state
   → monitor stops against real price movement. Identical to live minus the order.
 
-Log every decision (including holds) to `state/TRADE_LOG.md`.
+Log every decision (including holds) to `state/TRADE_LOG.md` in its format — each
+entry MUST include a falsifiable **Thesis** and an explicit **Invalidation** (the
+concrete, observable condition that would prove it wrong / force an exit). If you
+can't state a clear invalidation, you don't have a trade — HOLD.
 
 ## Risk
 Follow `strategy/STRATEGY.md` exactly — those are the user's rules, not
