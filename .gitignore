@@ -12,6 +12,10 @@ TRADE_STATE.md
 # Local Claude Code settings (personal; shared rules go in .claude/settings.json)
 .claude/settings.local.json
 
+# Cron scheduler runtime (session/local state, not a durable artifact)
+.claude/scheduled_tasks.lock
+.claude/scheduled_tasks.json
+
 # Noise
 .DS_Store
 *.log
