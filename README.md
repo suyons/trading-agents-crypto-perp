@@ -67,8 +67,9 @@ Moving to real money (`mainnet`) is always an explicit human decision.
 | `exchanges/gate/` | active Gate.io adapter + notes |
 | `state/TRADE_LOG.md` | append-only decision history (tracked) |
 | `state/TRADE_STATE.md` | live capital/positions (gitignored — churns) |
-| `secrets/.env` | API keys (gitignored — **never committed**) |
+| `secrets/.env` | API keys + Telegram token (gitignored — **never committed**) |
 | `.claude/agents/trader.md` | trader sub-agent definition |
+| `notify/telegram.py` | outbound Telegram notifier (channel-swappable) |
 | `CLAUDE.md` | full orchestration + project contract |
 
 ## Usage
@@ -85,6 +86,19 @@ python3 exchanges/gate/adapter.py order BTC SELL 0.02 --stop 70450 --tp 68000
 Trading itself runs through Claude Code: ask the orchestrator to spawn the trader
 for a cycle, or let the hourly schedule drive it. Provide keys in `secrets/.env`
 (`GATE_API_KEY`, `GATE_SECRET_KEY`).
+
+## Notifications
+
+Outbound trade summaries and risk alerts go to Telegram via `notify/telegram.py`
+(stdlib, channel-swappable). After each hourly cycle the orchestrator sends a
+*verified* digest — equity/P&L, open positions with their stop/target — and
+prefixes `🚨 ALERT:` on drawdown or position events. Set up with a BotFather
+token in `secrets/.env`, message the bot once, then `chatid --save`:
+
+```bash
+python3 notify/telegram.py chatid --save   # after messaging the bot
+python3 notify/telegram.py test            # connection ping
+```
 
 ## Safety
 

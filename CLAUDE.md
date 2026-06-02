@@ -40,8 +40,9 @@ exchanges/gate/adapter.py     # active adapter: Gate APIv4 futures (HMAC-SHA512)
 exchanges/gate/NOTES.md       # adapter notes / gotchas / validation record
 state/TRADE_STATE.md          # capital, open positions (gitignored — churns each spawn)
 state/TRADE_LOG.md            # append-only decision log (tracked — durable history)
-secrets/.env                  # API keys (gitignored — NEVER committed)
+secrets/.env                  # API keys + Telegram token (gitignored — NEVER committed)
 .claude/agents/trader.md      # trader sub-agent definition
+notify/telegram.py            # outbound notifier (Telegram alerts; channel-swappable)
 ```
 
 ## Trader contract
@@ -95,12 +96,29 @@ which is an explicit user decision, never the agent's. Keys come from
 - **Never commit API keys.** They go in `secrets/.env`, which is gitignored.
   Not in `CLAUDE.md`, not in `EXCHANGE_CONFIG.md`, not in any tracked file.
 - The git remote URL embeds a GitHub PAT — **rotate it before any real-money use.**
+- The Telegram bot token lives in `secrets/.env` too. It was pasted in plaintext
+  during setup, so consider `/revoke` in BotFather and replacing it.
 - The Gate keys are testnet/demo (no real money). Real money requires
   `network: mainnet`, an explicit user decision.
 - `TRADE_STATE.md` is gitignored (it churns every spawn); `TRADE_LOG.md` is
   tracked as the durable record.
 - Live (testnet) execution is active by explicit user decision. Don't flip to
   `mainnet`, and don't widen risk guardrails, without an explicit ask.
+
+## Notifications
+
+Outbound only, best-effort, via `notify/telegram.py` (the single Telegram-specific
+file — channel is swappable like the exchange). The **orchestrator** sends the
+*verified* hourly summary after reconciling against the exchange (the trader
+doesn't notify); drawdown/position events are prefixed `🚨 ALERT:`. Token +
+chat_id live in `secrets/.env` (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`). A
+notify failure must never break a trading cycle.
+
+```
+python3 notify/telegram.py test            # connection ping
+python3 notify/telegram.py send "text"     # send to the configured chat
+python3 notify/telegram.py chatid --save   # discover + store chat_id (after messaging the bot)
+```
 
 ## Status
 
@@ -109,7 +127,8 @@ which is an explicit user decision, never the agent's. Keys come from
 against demo funds: `mode: live`, `network: testnet`. A full
 `order -> stop -> cancel -> close` round-trip was validated with clean I/O, and
 the trader runs **hourly** (session-only cron, `:07`) across BTC/ETH/SOL/XRP, each
-position bracketed with a stop + take-profit.
+position bracketed with a stop + take-profit, and a verified summary is pushed to
+Telegram each cycle (`notify/telegram.py`).
 
 The earlier "401 / outage" blocker is **resolved**: the old testnet host
 `fx-api-testnet.gateio.ws` is permanently dead (502); the live host is
