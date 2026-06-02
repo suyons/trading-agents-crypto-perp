@@ -43,7 +43,7 @@ state/TRADE_LOG.md            # append-only decision log (tracked — durable hi
 secrets/.env                  # API keys + Telegram token (gitignored — NEVER committed)
 .claude/agents/trader.md      # trader sub-agent definition
 notify/telegram.py            # outbound notifier (Telegram alerts; channel-swappable)
-notify/telegram_listen.py     # inbound command listener (two-way control; chat-locked)
+notify/telegram_listen.py     # inbound NL bridge -> orchestrator (two-way; chat-locked)
 ```
 
 ## Trader contract
@@ -116,24 +116,33 @@ Telegram failure must never break a trading cycle.
 the *verified* hourly summary after reconciling against the exchange (the trader
 doesn't notify); drawdown/position events are prefixed `🚨 ALERT:`.
 
-**Inbound** — `notify/telegram_listen.py`, a background long-poll listener that
-acts ONLY on the authorized `TELEGRAM_CHAT_ID` (others ignored). Runs only while
-the session is alive (relaunched by the hourly cron if it dies). Commands:
-`status` · `positions` · `balance`/`pnl` · `log [n]` · `close <SYM>` · `flatten` ·
-`pause`/`resume` · `run` · `help`.
+**Inbound (natural language)** — `notify/telegram_listen.py` is a thin BRIDGE,
+not a command parser. A script can't reason, so replies come from the Claude
+orchestrator. The bridge long-polls Telegram; on a message from the authorized
+`TELEGRAM_CHAT_ID` (others ignored) it appends to `state/bot_inbox.jsonl`, sends a
+typing indicator, and EXITS (`__INBOX__ n`) — which wakes the orchestrator. It
+runs only while the session is alive; the hourly cron relaunches it if it died.
 
-- `pause` writes `state/trading.paused`; the hourly cron skips trading while it
-  exists. `resume` removes it. (Both gitignored — transient control state.)
-- `run` writes `state/bot_run.request` and exits with `__RUN_REQUESTED__`; the
-  orchestrator is re-invoked to run a cycle, then relaunches the listener. The
-  hourly cron also drains the request file as a backstop.
-- `close`/`flatten` go straight through the adapter (`close` + `cancel`), so they
-  work without the orchestrator.
+**Orchestrator bridge protocol** — when the bridge exits with pending inbox (you
+are notified the background task ended), do this, then continue:
+1. Read `state/bot_inbox.jsonl` — the queued user message(s).
+2. For each: interpret the free-form request, pull live data via the adapter,
+   reason, and reply with `notify/telegram.py send "..."`. Take any requested
+   action — analysis (just reply), `close`/`flatten` (adapter `close`+`cancel`),
+   `pause`/`resume` (create/remove `state/trading.paused`), or a full cycle / new
+   trade (spawn the `trader` sub-agent). Honor the same risk rules and chat-lock.
+3. Truncate `state/bot_inbox.jsonl` (only after replying).
+4. Relaunch the bridge in the background: `python3 notify/telegram_listen.py`.
+
+State files (all gitignored): `bot_inbox.jsonl` (queue), `bot_offset` (getUpdates
+cursor — prevents message loss across the exit/relaunch handoff), `trading.paused`
+(pause flag the hourly cron honors). Each message round-trips through an
+orchestrator turn, so expect ~tens of seconds of latency.
 
 ```
 python3 notify/telegram.py test            # outbound: connection ping
 python3 notify/telegram.py send "text"     # outbound: send to the configured chat
-python3 notify/telegram_listen.py          # inbound: run the command listener (background)
+python3 notify/telegram_listen.py          # inbound: run the NL bridge (background)
 ```
 
 ## Status

@@ -70,7 +70,7 @@ Moving to real money (`mainnet`) is always an explicit human decision.
 | `secrets/.env` | API keys + Telegram token (gitignored — **never committed**) |
 | `.claude/agents/trader.md` | trader sub-agent definition |
 | `notify/telegram.py` | outbound Telegram notifier (channel-swappable) |
-| `notify/telegram_listen.py` | inbound Telegram command listener (two-way control) |
+| `notify/telegram_listen.py` | inbound Telegram NL bridge → orchestrator (two-way) |
 | `CLAUDE.md` | full orchestration + project contract |
 
 ## Usage
@@ -94,16 +94,17 @@ for a cycle, or let the hourly schedule drive it. Provide keys in `secrets/.env`
 sends a *verified* digest (equity/P&L, positions with stop/target), prefixing
 `🚨 ALERT:` on drawdown or position events.
 
-**Inbound** (`notify/telegram_listen.py`) — a background listener that acts only
-on the authorized chat and accepts commands:
-`status` · `positions` · `balance`/`pnl` · `log [n]` · `close <SYM>` · `flatten` ·
-`pause`/`resume` · `run` · `help`. Both run only while the Claude Code session is
-alive. Set up with a BotFather token in `secrets/.env`, message the bot once, then:
+**Inbound (natural language)** (`notify/telegram_listen.py`) — a thin bridge that
+forwards messages from the authorized chat to the Claude orchestrator, which
+understands free-form requests ("show your analysis on ETH now", "close my BTC
+short", "pause trading"), pulls live data, replies, and acts. Both run only while
+the Claude Code session is alive. Set up with a BotFather token in `secrets/.env`,
+message the bot once, then:
 
 ```bash
 python3 notify/telegram.py chatid --save   # store chat_id (after messaging the bot)
 python3 notify/telegram.py test            # outbound connection ping
-python3 notify/telegram_listen.py &        # start the inbound command listener
+python3 notify/telegram_listen.py &        # start the inbound NL bridge
 ```
 
 ## Safety

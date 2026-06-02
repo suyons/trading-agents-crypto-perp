@@ -16,9 +16,11 @@ TRADE_STATE.md
 .claude/scheduled_tasks.lock
 .claude/scheduled_tasks.json
 
-# Telegram listener runtime signals (transient control state)
+# Telegram listener/bridge runtime signals (transient control state)
 state/trading.paused
 state/bot_run.request
+state/bot_inbox.jsonl
+state/bot_offset
 
 # Noise
 .DS_Store
