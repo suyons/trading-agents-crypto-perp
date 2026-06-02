@@ -1,19 +1,34 @@
 # Gate.io adapter
 
-Status: **code complete; live access UNVERIFIED.** Implements the common
-interface in `../INTERFACE.md`. Live execution is **held in paper**
-(`../EXCHANGE_CONFIG.md mode: paper`) until signed access is confirmed.
+Status: **VALIDATED LIVE on testnet (2026-06-02).** Implements the common
+interface in `../INTERFACE.md`. `../EXCHANGE_CONFIG.md` is `mode: live`,
+`network: testnet` (real order execution against Gate demo funds).
 
-> Honesty note: the session in which this adapter was built had a corrupted tool
-> I/O channel (stale / duplicated / lagged output). Earlier apparent successes
-> ("balance ~$10k", "entry/close validated", a "400 stop bug") came through that
-> broken channel and are **retracted** — they were not reliably observed. The
-> only coherent, multi-file-consistent signed result was **HTTP 401 INVALID_KEY**
-> ("Invalid key provided"). Treat all live Gate behavior as UNCONFIRMED until
-> re-run in a healthy session.
+> Honesty note: an earlier session that built this adapter had a corrupted tool
+> I/O channel (stale / duplicated / lagged output). Apparent successes from it
+> ("balance ~$10k", "entry/close validated", a "400 stop bug") were **retracted**
+> as unreliable. They have now been superseded by a clean re-validation (below);
+> e.g. the real demo balance is ~1000 USDT (not $10k) and there is no 400 stop bug.
+
+## Resolved blocker: the testnet API host had moved
+The old host `fx-api-testnet.gateio.ws` is dead (returns HTTP 502 — that was the
+whole "outage"/401 story). The live testnet futures API host is
+**`api-testnet.gateapi.io`**. With the host corrected, the existing keys
+authenticate fine (signed `/accounts` -> 200). The keys were never the problem.
+
+## Validation round-trip (2026-06-02, clean single-call I/O)
+- `balance` -> 1000.00 USDT available (note: `total` reads 0 in this cross /
+  single-currency margin account; equity is derived from `available` instead).
+- `order BTC BUY 0.0001 --force` -> filled @ 69651.1 (1 contract).
+- `stop BTC BUY 68250 --force` -> accepted, status `open` (price-trigger works).
+- `cancel BTC --force` -> stop -> `cancelled` (cancels orders + price_orders).
+- `close BTC --force` -> filled @ 69647.4, position flat. Round-trip cost
+  ~0.0073 USDT (fees + slippage on ~$7 notional).
+- `order --stop` is now fail-safe: if the protective stop can't be placed, the
+  entry is auto-closed so no unprotected position can persist.
 
 - API: Gate APIv4 futures, USDT-settled perpetuals. Base URLs:
-  - testnet: `https://fx-api-testnet.gateio.ws`
+  - testnet: `https://api-testnet.gateapi.io`   (old `fx-api-testnet.gateio.ws` is dead/502)
   - mainnet: `https://api.gateio.ws`
   Selected by `network:` in `../EXCHANGE_CONFIG.md` (defaults to testnet).
 - Auth: `GATE_API_KEY` / `GATE_SECRET_KEY` from `secrets/.env`, HMAC-SHA512
@@ -21,25 +36,13 @@ interface in `../INTERFACE.md`. Live execution is **held in paper**
 - Symbols use underscores (`BTC_USDT`); order size is in *contracts*. The adapter
   converts coin qty <-> contracts via each contract's `quanto_multiplier`.
 
-## Blocker: Gate futures testnet appears DOWN
-Diagnostic (5x each, all consistent):
-  - public `…/contracts/BTC_USDT`  -> HTTP **502** (openresty gateway)  x5
-  - signed `…/accounts` (balance)  -> HTTP **401 INVALID_KEY**          x5
-
-Keyless public reads failing with 502 means the testnet gateway/backend itself
-is unhealthy; the persistent 401 is most likely a symptom of that outage, not a
-bad key. The keys are stored correctly and are testnet-origin (user-confirmed),
-so the host matches.
-
-Action: retry when the testnet recovers (public reads return 200). If signed
-calls STILL 401 *after* public reads succeed, THEN it's a key issue — check the
-testnet API key's Futures permission + IP allowlist, or regenerate it.
-
-## To validate (in a healthy session, once keys/endpoint match)
-1. `balance` / `positions` (signed reads) — confirm `200`, not `401`.
-2. Tiny market `order` + `close` round-trip; verify flat + balance after.
-3. `stop` / `--stop` price-trigger, AND make `order --stop` fail-safe: if the
-   stop can't be placed, auto-close the entry so no unprotected position persists.
+## History of the (now-resolved) 502/401 blocker
+For days, public reads returned 502 and signed reads 401 INVALID_KEY against
+`fx-api-testnet.gateio.ws`. This was misdiagnosed as a "testnet outage." The real
+cause: that host is permanently dead. Pointing the adapter at
+`api-testnet.gateapi.io` made both public (200) and signed (200) reads work
+immediately with the same keys. Lesson: when a *keyless* endpoint also fails,
+suspect the host/URL before concluding "outage" — and test an alternate host.
 
 ## Gotcha
 Testnet has ~no trading activity, so `volume` / `high24h` / `low24h` / candle

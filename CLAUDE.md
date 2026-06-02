@@ -95,15 +95,17 @@ which is an explicit user decision, never the agent's. Keys come from
 
 ## Status
 
-**Pivoted to Gate.io for real execution** (was Aster paper). The Gate adapter
-(`exchanges/gate/adapter.py`) is code-complete against Gate APIv4 (HMAC-SHA512).
-**Live access is UNVERIFIED — Gate testnet is currently down:** keyless public
-reads return `502` and signed reads return `401 INVALID_KEY` (5/5 each), i.e. a
-Gate-side outage, not the keys (which are stored correctly and testnet-origin).
-Earlier "validated / funded" claims (made through a laggy session I/O) are
-**retracted** (see `exchanges/gate/NOTES.md`). Live execution is **held in
-paper** until the testnet recovers and signed reads return 200. The Aster paper
-adapter is retained, deactivated.
+**LIVE on Gate.io testnet (validated 2026-06-02).** The Gate adapter
+(`exchanges/gate/adapter.py`, Gate APIv4 / HMAC-SHA512) is running real order
+execution against demo funds: `mode: live`, `network: testnet`. A full
+`order -> stop -> cancel -> close` round-trip was validated with clean I/O
+(balance ~1000 USDT, BTC entry 69651.1 / exit 69647.4, flat after).
+
+The earlier "401 / outage" blocker is **resolved**: the old testnet host
+`fx-api-testnet.gateio.ws` is permanently dead (502); the live host is
+`api-testnet.gateapi.io`. The keys were always valid. The prior corrupted-I/O
+claims (a "$10k balance", a "400 stop bug") are retracted and superseded — see
+`exchanges/gate/NOTES.md`. The Aster paper adapter is retained, deactivated.
 
 Security note: keys stay in gitignored `secrets/.env` (Aster + Gate, namespaced).
 The Aster keys were exposed in plaintext during migration, and the git remote URL
@@ -126,11 +128,15 @@ user decision.
 - [x] **Replace the starter strategy** — swapped to a fully autonomous,
       Claude-driven, no-indicator strategy (`strategy/STRATEGY.md`).
 
+- [x] **Resolve the Gate access blocker** — the testnet API host had moved
+      (`fx-api-testnet.gateio.ws` 502 -> `api-testnet.gateapi.io`). Same keys, 200.
+- [x] **Validate the live round-trip on testnet** — order/stop/cancel/close all
+      confirmed (2026-06-02); `order --stop` made fail-safe; `cancel` added.
+- [x] **Flip `mode: live`** (network stays `testnet` = demo funds).
+
 Next:
+- [ ] Build a testnet track record (spawn `trader` for real decision cycles).
 - [ ] Rotate the Aster keys **and** the GitHub PAT embedded in the git remote
       URL before any real-money use.
-- [ ] Resolve Gate `401 INVALID_KEY`: confirm which environment the keys belong
-      to (testnet site vs mainnet vs demo-trading) and match `network:`/base URL.
-- [ ] Then revalidate signed reads + a tiny order/close/stop round-trip in a
-      healthy session, make `order --stop` fail-safe, and flip `mode: live`.
-- [ ] Build a testnet track record before pointing `network:` at mainnet.
+- [ ] Only then consider `network: mainnet` (real money) — an explicit user
+      decision, never the agent's.

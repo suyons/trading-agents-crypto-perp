@@ -7,8 +7,11 @@ exchange-agnostic CLI as every other adapter (see exchanges/INTERFACE.md), so
 switching exchanges is just changing `exchange:` in EXCHANGE_CONFIG.md.
 
 Network is chosen by `network:` in EXCHANGE_CONFIG.md:
-  - testnet (default) -> https://fx-api-testnet.gateio.ws  (demo funds, real exec)
-  - mainnet           -> https://api.gateio.ws             (real money)
+  - testnet (default) -> https://api-testnet.gateapi.io  (demo funds, real exec)
+  - mainnet           -> https://api.gateio.ws           (real money)
+
+Note: the older testnet host fx-api-testnet.gateio.ws is dead (returns 502);
+the live testnet futures API host is api-testnet.gateapi.io.
 
 Auth: Gate APIv4 (KEY / Timestamp / SIGN headers, HMAC-SHA512). Keys come from
 secrets/.env as GATE_API_KEY / GATE_SECRET_KEY. Order size on Gate is in
@@ -31,7 +34,7 @@ from urllib import error, parse, request
 PREFIX = "/api/v4"
 SETTLE = "usdt"
 HOSTS = {
-    "testnet": "https://fx-api-testnet.gateio.ws",
+    "testnet": "https://api-testnet.gateapi.io",
     "mainnet": "https://api.gateio.ws",
 }
 
@@ -216,10 +219,19 @@ def cmd_snapshot(args):
 # --- account / trading (signed) -------------------------------------------
 def cmd_balance(args):
     d = _signed("GET", f"/futures/{SETTLE}/accounts")
+    avail = float(d.get("available") or 0)
+    # `total` is 0 in cross / single-currency margin accounts; derive equity from
+    # available + locked margin + unrealised PnL so it's correct across modes.
+    equity = float(d.get("total") or 0)
+    if equity <= 0:
+        equity = (avail
+                  + float(d.get("position_margin") or 0)
+                  + float(d.get("order_margin") or 0)
+                  + float(d.get("unrealised_pnl") or 0))
     return [{
         "asset": SETTLE.upper(),
-        "balance": float(d["total"]),
-        "availableBalance": float(d["available"]),
+        "balance": equity,
+        "availableBalance": avail,
     }]
 
 
@@ -268,7 +280,23 @@ def cmd_order(args):
         body["reduce_only"] = True
     result = {"entry": _signed("POST", f"/futures/{SETTLE}/orders", body_obj=body)}
     if args.stop:
-        result["stop"] = _place_stop(c, args.side.upper(), args.stop)
+        # Fail-safe: a filled entry with no stop is an unprotected position.
+        # If the stop can't be placed, immediately close the entry and report.
+        try:
+            result["stop"] = _place_stop(c, args.side.upper(), args.stop)
+        except Exception as e:
+            unwind = {"contract": c, "size": 0, "price": "0", "tif": "ioc",
+                      "auto_size": "close_long" if args.side.upper() == "BUY"
+                      else "close_short", "reduce_only": True}
+            try:
+                undo = _signed("POST", f"/futures/{SETTLE}/orders", body_obj=unwind)
+                result["stop_error"] = (f"stop failed ({e!r}); entry auto-closed "
+                                        f"to avoid an unprotected position")
+                result["auto_close"] = undo
+            except Exception as e2:
+                result["stop_error"] = (f"stop failed ({e!r}) AND auto-close failed "
+                                        f"({e2!r}) -- POSITION MAY BE UNPROTECTED, "
+                                        f"close {c} manually")
     return result
 
 
@@ -315,6 +343,19 @@ def cmd_stop(args):
     return _place_stop(normalize_symbol(args.symbol), args.side.upper(), args.price)
 
 
+def cmd_cancel(args):
+    # Cancels open orders for a contract: both resting limit orders and pending
+    # price-triggered (stop) orders. Used to clean up before/after a position.
+    if _mode() != "live" and not args.force:
+        raise SystemExit("Refusing to cancel: mode is not 'live'. Pass --force.")
+    c = normalize_symbol(args.symbol)
+    return {
+        "orders": _signed("DELETE", f"/futures/{SETTLE}/orders", query={"contract": c}),
+        "price_orders": _signed("DELETE", f"/futures/{SETTLE}/price_orders",
+                                query={"contract": c}),
+    }
+
+
 # --- dispatch -------------------------------------------------------------
 def main(argv):
     p = argparse.ArgumentParser(description="Gate.io futures adapter (see exchanges/INTERFACE.md)")
@@ -351,6 +392,10 @@ def main(argv):
     sp.add_argument("side", choices=["BUY", "SELL", "buy", "sell"],
                     help="the ENTRY side the stop protects (BUY=long)")
     sp.add_argument("price")
+    sp.add_argument("--force", action="store_true")
+
+    sp = sub.add_parser("cancel")
+    sp.add_argument("symbol")
     sp.add_argument("--force", action="store_true")
 
     args = p.parse_args(argv)
