@@ -43,6 +43,7 @@ state/TRADE_LOG.md            # append-only decision log (tracked — durable hi
 secrets/.env                  # API keys + Telegram token (gitignored — NEVER committed)
 .claude/agents/trader.md      # trader sub-agent definition
 notify/telegram.py            # outbound notifier (Telegram alerts; channel-swappable)
+notify/telegram_listen.py     # inbound command listener (two-way control; chat-locked)
 ```
 
 ## Trader contract
@@ -105,19 +106,34 @@ which is an explicit user decision, never the agent's. Keys come from
 - Live (testnet) execution is active by explicit user decision. Don't flip to
   `mainnet`, and don't widen risk guardrails, without an explicit ask.
 
-## Notifications
+## Notifications & control (Telegram)
 
-Outbound only, best-effort, via `notify/telegram.py` (the single Telegram-specific
-file — channel is swappable like the exchange). The **orchestrator** sends the
-*verified* hourly summary after reconciling against the exchange (the trader
-doesn't notify); drawdown/position events are prefixed `🚨 ALERT:`. Token +
-chat_id live in `secrets/.env` (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`). A
-notify failure must never break a trading cycle.
+Channel is swappable like the exchange. Token + chat_id live in `secrets/.env`
+(`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`). All notifications are best-effort — a
+Telegram failure must never break a trading cycle.
+
+**Outbound** — `notify/telegram.py` (send/test/chatid). The **orchestrator** sends
+the *verified* hourly summary after reconciling against the exchange (the trader
+doesn't notify); drawdown/position events are prefixed `🚨 ALERT:`.
+
+**Inbound** — `notify/telegram_listen.py`, a background long-poll listener that
+acts ONLY on the authorized `TELEGRAM_CHAT_ID` (others ignored). Runs only while
+the session is alive (relaunched by the hourly cron if it dies). Commands:
+`status` · `positions` · `balance`/`pnl` · `log [n]` · `close <SYM>` · `flatten` ·
+`pause`/`resume` · `run` · `help`.
+
+- `pause` writes `state/trading.paused`; the hourly cron skips trading while it
+  exists. `resume` removes it. (Both gitignored — transient control state.)
+- `run` writes `state/bot_run.request` and exits with `__RUN_REQUESTED__`; the
+  orchestrator is re-invoked to run a cycle, then relaunches the listener. The
+  hourly cron also drains the request file as a backstop.
+- `close`/`flatten` go straight through the adapter (`close` + `cancel`), so they
+  work without the orchestrator.
 
 ```
-python3 notify/telegram.py test            # connection ping
-python3 notify/telegram.py send "text"     # send to the configured chat
-python3 notify/telegram.py chatid --save   # discover + store chat_id (after messaging the bot)
+python3 notify/telegram.py test            # outbound: connection ping
+python3 notify/telegram.py send "text"     # outbound: send to the configured chat
+python3 notify/telegram_listen.py          # inbound: run the command listener (background)
 ```
 
 ## Status
