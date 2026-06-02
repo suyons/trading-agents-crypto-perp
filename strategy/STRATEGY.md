@@ -25,8 +25,8 @@ holds; that is correct, not failure.
 
 These are not discretionary. The autonomy lives *inside* these limits.
 
-1. Symbols: BTC, ETH, SOL USDT perpetuals — the active exchange's native symbols
-   (see `exchanges/EXCHANGE_CONFIG.md`; currently Gate `BTC_USDT` etc.).
+1. Symbols: BTC, ETH, SOL, XRP USDT perpetuals — the active exchange's native
+   symbols (see `exchanges/EXCHANGE_CONFIG.md`; currently Gate `BTC_USDT` etc.).
 2. Max leverage: 20x.
 3. Max risk per trade: **2% of equity**. Size so (entry→stop distance) × size ≤ 2% equity.
 4. Max open positions: 2 — one per asset.

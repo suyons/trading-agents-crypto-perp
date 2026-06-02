@@ -220,17 +220,21 @@ def cmd_snapshot(args):
 def cmd_balance(args):
     d = _signed("GET", f"/futures/{SETTLE}/accounts")
     avail = float(d.get("available") or 0)
-    # `total` is 0 in cross / single-currency margin accounts; derive equity from
-    # available + locked margin + unrealised PnL so it's correct across modes.
+    # `total` reads 0 in cross / single-currency margin accounts; derive equity as
+    # available + locked margin + unrealised PnL. The locked margin appears as
+    # cross_initial_margin in cross mode and position_margin/order_margin in
+    # isolated mode (mutually exclusive), so summing all is safe across modes.
     equity = float(d.get("total") or 0)
     if equity <= 0:
         equity = (avail
                   + float(d.get("position_margin") or 0)
                   + float(d.get("order_margin") or 0)
+                  + float(d.get("cross_initial_margin") or 0)
+                  + float(d.get("cross_order_margin") or 0)
                   + float(d.get("unrealised_pnl") or 0))
     return [{
         "asset": SETTLE.upper(),
-        "balance": equity,
+        "balance": round(equity, 6),
         "availableBalance": avail,
     }]
 

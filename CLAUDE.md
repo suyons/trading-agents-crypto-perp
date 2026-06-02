@@ -60,8 +60,8 @@ the above from those files (strategy, exchange config, state) — **except keys.
 **Fully autonomous, Claude-driven — no technical indicators.** Each cycle the
 trader reasons over real market data (price, 24h range, funding, raw price
 action, optional news) and decides discretionarily. Unproven by design.
-**Live execution on Gate.io testnet** (demo funds, ~$10k). Pairs BTC/ETH/SOL
-USDT perps.
+**Live execution on Gate.io testnet** (demo funds, ~$1k). Pairs BTC/ETH/SOL/XRP
+USDT perps (canonical list in `exchanges/EXCHANGE_CONFIG.md`).
 
 Risk guardrails (hard limits the autonomy lives inside):
 - Max leverage 20x · max 2 open positions (1/asset) · risk ≤2% equity/trade

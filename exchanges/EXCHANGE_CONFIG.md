@@ -9,3 +9,4 @@ pairs:
   - BTC_USDT
   - ETH_USDT
   - SOL_USDT
+  - XRP_USDT
