@@ -29,7 +29,11 @@ These are not discretionary. The autonomy lives *inside* these limits.
    symbols (see `exchanges/EXCHANGE_CONFIG.md`; currently Gate `BTC_USDT` etc.).
 2. Max leverage: 20x.
 3. Max risk per trade: **2% of equity**. Size so (entry→stop distance) × size ≤ 2% equity.
-4. Max open positions: 2 — one per asset.
+4. Max open positions: **no fixed total cap** — but still **one position per
+   asset** (no stacking/averaging the same symbol). With the current 4-symbol
+   universe that is effectively up to 4 concurrent positions. Aggregate risk is
+   now bounded by per-trade risk × positions (≤2% each) and the drawdown circuit
+   breaker below, not by a position count.
 5. Max drawdown: 10% of starting capital → **stop trading and alert** (circuit breaker).
 6. **Every position gets a stop loss, set the moment the position is opened.**
    The stop *level* is Claude's call, but the resulting loss must be ≤ 2% equity.

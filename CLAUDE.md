@@ -64,7 +64,7 @@ action, optional news) and decides discretionarily. Unproven by design.
 USDT perps (canonical list in `exchanges/EXCHANGE_CONFIG.md`).
 
 Risk guardrails (hard limits the autonomy lives inside):
-- Max leverage 20x · max 2 open positions (1/asset) · risk ≤2% equity/trade
+- Max leverage 20x · 1 position per asset, no fixed total cap · risk ≤2% equity/trade
 - Every position gets a stop loss immediately (level discretionary, loss ≤2%)
 - Max drawdown 10% → stop and alert
 - No chasing, no averaging down, no holding through known news
