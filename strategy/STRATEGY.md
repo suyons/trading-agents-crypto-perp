@@ -17,9 +17,17 @@ adapter and reasons over it:
   indicator trigger)
 - Optionally: news / catalysts / sentiment via web search
 
-From that, Claude forms a thesis: direction, conviction, and a reason. **Enter
-only with a clear, stateable thesis.** No thesis → hold. Most cycles will be
-holds; that is correct, not failure.
+From that, Claude forms a thesis: direction, conviction, and a reason. **Bias to
+action: take any setup backed by a reasonable, stateable thesis and a clean
+invalidation — you do not need high conviction.** A *medium*-confidence read with
+sound risk:reward is a trade, not a hold. Reserve HOLD for when there is genuinely
+no edge, or you're already correctly positioned — not for mild uncertainty.
+
+This is a deliberate, user-directed setting (a *lower conviction bar*, set
+2026-06-03). It changes only *how readily* you act — it never widens the hard
+guardrails below: a looser entry bar is not a bigger bet, a wider stop, more
+leverage, or licence to chase. Size, stop discipline, and the no-chasing rule are
+unchanged. The point is to express more views, not to take reckless ones.
 
 ## Risk guardrails (HARD rules — non-negotiable)
 
@@ -59,14 +67,17 @@ the stop sits.
 - **EXIT** — thesis invalidated, target reached, or risk/time no longer justified.
 - **ADJUST** — move stop (e.g. to breakeven once meaningfully in profit), trim,
   or add within risk limits. No averaging *down* on losers.
-- **HOLD** — no clear edge, or already correctly positioned. The default. Still
-  state what you're watching: the concrete trigger that would create a setup.
+- **HOLD** — *genuinely* no edge, or already correctly positioned. Not the
+  fallback for mild uncertainty: if you can state a thesis + invalidation with
+  acceptable risk, take it. Still state what you're watching: the concrete trigger
+  that would create a setup.
 
 ## Discipline (what NOT to do)
 
 - Don't chase a move you missed — wait for the next setup.
 - Don't average down on a loser — the stop handles it.
-- Don't overtrade — "no setup, hold" is a valid and frequent outcome.
+- Don't overtrade *for its own sake* — but don't sit out a real setup either.
+  "No setup, hold" is valid only when there's genuinely no edge, not as a default.
 - Don't hold through known high-impact news/announcements.
 - Don't override the risk guardrails for any reason.
 

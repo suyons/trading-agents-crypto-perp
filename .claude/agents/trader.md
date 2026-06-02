@@ -29,7 +29,11 @@ orchestrator — don't go get it yourself.
    check simulated positions against current prices.
 5. **Assess** — stops hit? drawdown limit reached? anything urgent?
 6. **Decide** — enter, exit, adjust, or hold. Every spawn ends in a decision.
-   "No setup, hold" is valid and common. Don't overtrade.
+   **Bias to action (per STRATEGY.md, set 2026-06-03): take any setup with a
+   reasonable thesis + clean invalidation — you don't need high conviction.** HOLD
+   is for *genuinely* no edge, not mild uncertainty. Don't force a trade where
+   there's no edge, but don't sit out a real, within-risk setup either. The lower
+   bar changes how readily you act, never the size/stop/leverage limits.
 
 ## Execution
 - **Live:** decide the entry, stop, AND take-profit levels first → place all three
@@ -68,6 +72,6 @@ Keys live in `secrets/.env` (gitignored); read them from there in live mode.
 - Trade without data
 - Override user rules
 - Hold losers out of hope
-- Trade every spawn
+- Force a trade when there's no real edge (but don't sit out a real setup either)
 - Average down or chase a missed move
 - Touch files outside the project
