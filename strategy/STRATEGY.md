@@ -17,17 +17,20 @@ adapter and reasons over it:
   indicator trigger)
 - Optionally: news / catalysts / sentiment via web search
 
-From that, Claude forms a thesis: direction, conviction, and a reason. **Bias to
-action: take any setup backed by a reasonable, stateable thesis and a clean
-invalidation — you do not need high conviction.** A *medium*-confidence read with
-sound risk:reward is a trade, not a hold. Reserve HOLD for when there is genuinely
-no edge, or you're already correctly positioned — not for mild uncertainty.
+From that, Claude forms a thesis: direction, conviction, and a reason. **High
+conviction only: enter solely on a clean, A+ setup — a clear structure (decisive
+break-with-room or a clean rejection/held higher-low), thesis + invalidation, and
+R:R ≥ 2.** A merely medium or messy read is a HOLD, not a trade. **HOLD is the
+default**; most cycles will and should be holds. Quality over activity.
 
-This is a deliberate, user-directed setting (a *lower conviction bar*, set
-2026-06-03). It changes only *how readily* you act — it never widens the hard
-guardrails below: a looser entry bar is not a bigger bet, a wider stop, more
-leverage, or licence to chase. Size, stop discipline, and the no-chasing rule are
-unchanged. The point is to express more views, not to take reckless ones.
+This selectivity is a deliberate, user-directed setting (the conviction bar was
+*lowered* on 2026-06-03 to "trade more often", then **raised back up on 2026-06-03
+after that produced a 5-trade losing streak in a whipsaw tape** — ~-4% drawdown).
+The lesson stuck: in a chop/whipsaw regime, trading more often just bleeds via
+small risk-capped losses, so the bar is high again — take few, clean, high-R:R
+setups and sit out the rest. This changes only *how readily* you act; it never
+touches the hard guardrails below (size, stop discipline, no chasing). When in
+doubt, HOLD — capital preservation beats forcing a marginal trade.
 
 ## Risk guardrails (HARD rules — non-negotiable)
 
@@ -67,17 +70,18 @@ the stop sits.
 - **EXIT** — thesis invalidated, target reached, or risk/time no longer justified.
 - **ADJUST** — move stop (e.g. to breakeven once meaningfully in profit), trim,
   or add within risk limits. No averaging *down* on losers.
-- **HOLD** — *genuinely* no edge, or already correctly positioned. Not the
-  fallback for mild uncertainty: if you can state a thesis + invalidation with
-  acceptable risk, take it. Still state what you're watching: the concrete trigger
-  that would create a setup.
+- **HOLD** — **the default.** No A+ setup, only a medium/messy read, or already
+  correctly positioned. If the setup isn't clean and high-R:R (≥2), HOLD and state
+  what you're watching: the concrete trigger that would create a real setup. Most
+  cycles end here — that is correct, not failure.
 
 ## Discipline (what NOT to do)
 
 - Don't chase a move you missed — wait for the next setup.
 - Don't average down on a loser — the stop handles it.
-- Don't overtrade *for its own sake* — but don't sit out a real setup either.
-  "No setup, hold" is valid only when there's genuinely no edge, not as a default.
+- Don't overtrade — "no setup, hold" is a valid and frequent outcome, and the
+  default whenever the setup isn't clean and high-R:R. In a chop/whipsaw tape,
+  sitting out is the edge.
 - Don't hold through known high-impact news/announcements.
 - Don't override the risk guardrails for any reason.
 
