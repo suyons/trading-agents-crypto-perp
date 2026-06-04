@@ -53,7 +53,14 @@ These are not discretionary. The autonomy lives *inside* these limits.
    N like-direction crypto positions ≈ one N×-sized bet — size each so the
    *aggregate* worst-case (all stopping together) still leaves a buffer above the
    10% breaker, and prefer the best 2–4 theses over forcing all four.
-5. Max drawdown: 10% of starting capital → **stop trading and alert** (circuit breaker).
+5. Max drawdown: 10% of the **breaker baseline** → **stop trading and alert**
+   (circuit breaker). **Baseline RESET to $908.45 on 2026-06-04** (was the original
+   $999.99) — user's explicit decision after a ~-9% drawdown left the account
+   pinned at the old breaker, to give fresh room to keep trading. So the active
+   breaker floor is **$817.6** (10% below $908.45), NOT $900. If equity ≤ $817.6 →
+   no new positions, flatten/protect, ALERT. (Note: real cumulative loss from the
+   true $999.99 start is larger than 10% if this floor is hit — the user accepted
+   that tradeoff when resetting.)
 6. **Every position gets BOTH a stop loss and a take-profit, set the moment the
    position is opened — decide both levels *before* entering.** Place them with
    the entry in one shot: `order <SYM> <SIDE> <QTY> --stop <SL> --tp <TP>`. The
