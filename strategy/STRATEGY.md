@@ -17,20 +17,22 @@ adapter and reasons over it:
   indicator trigger)
 - Optionally: news / catalysts / sentiment via web search
 
-From that, Claude forms a thesis: direction, conviction, and a reason. **High
-conviction only: enter solely on a clean, A+ setup — a clear structure (decisive
-break-with-room or a clean rejection/held higher-low), thesis + invalidation, and
-R:R ≥ 2.** A merely medium or messy read is a HOLD, not a trade. **HOLD is the
-default**; most cycles will and should be holds. Quality over activity.
+From that, Claude forms a thesis: direction, conviction, and a reason. **Be
+willing to trade: open a position on any reasonable directional thesis with a
+clean invalidation — you do NOT need an A+ / high-conviction setup.** A
+medium-confidence lean with a sensible stop and target is a trade, not a hold.
+**Favor action**; HOLD only when you genuinely have no directional lean at all, or
+you're already correctly positioned.
 
-This selectivity is a deliberate, user-directed setting (the conviction bar was
-*lowered* on 2026-06-03 to "trade more often", then **raised back up on 2026-06-03
-after that produced a 5-trade losing streak in a whipsaw tape** — ~-4% drawdown).
-The lesson stuck: in a chop/whipsaw regime, trading more often just bleeds via
-small risk-capped losses, so the bar is high again — take few, clean, high-R:R
-setups and sit out the rest. This changes only *how readily* you act; it never
-touches the hard guardrails below (size, stop discipline, no chasing). When in
-doubt, HOLD — capital preservation beats forcing a marginal trade.
+This is a deliberate, user-directed setting and it has swung (all 2026-06-03 →
+2026-06-04): lowered to "trade more often" → raised to A+-only after a 5-trade
+losing streak → **lowered again 2026-06-04** when the user said, on this *demo*
+account, to stop sitting out and "be free to open any positions." Current setting:
+**favor action / low bar.** This governs only *how readily* you act — it does NOT
+relax the hard guardrails below. Two safety floors are NON-NEGOTIABLE regardless
+of the bar: **every position gets a stop AND a take-profit (never naked), and risk
+stays ≤2% equity/trade**, and the 10% drawdown breaker still halts trading. Within
+those, take setups freely.
 
 ## Risk guardrails (HARD rules — non-negotiable)
 
@@ -70,18 +72,18 @@ the stop sits.
 - **EXIT** — thesis invalidated, target reached, or risk/time no longer justified.
 - **ADJUST** — move stop (e.g. to breakeven once meaningfully in profit), trim,
   or add within risk limits. No averaging *down* on losers.
-- **HOLD** — **the default.** No A+ setup, only a medium/messy read, or already
-  correctly positioned. If the setup isn't clean and high-R:R (≥2), HOLD and state
-  what you're watching: the concrete trigger that would create a real setup. Most
-  cycles end here — that is correct, not failure.
+- **HOLD** — only when you genuinely have no directional lean, or you're already
+  correctly positioned. NOT the default: if you can state a thesis + invalidation
+  with a sensible stop and target, take it. When you do hold, state what you're
+  watching: the trigger that would create a setup.
 
 ## Discipline (what NOT to do)
 
 - Don't chase a move you missed — wait for the next setup.
 - Don't average down on a loser — the stop handles it.
-- Don't overtrade — "no setup, hold" is a valid and frequent outcome, and the
-  default whenever the setup isn't clean and high-R:R. In a chop/whipsaw tape,
-  sitting out is the edge.
+- Don't force a trade with *no* directional lean at all — but a reasonable thesis
+  is enough; you needn't wait for the perfect setup (user-set: favor action on this
+  demo). Every trade still carries a stop + take-profit and risks ≤2% equity.
 - Don't hold through known high-impact news/announcements.
 - Don't override the risk guardrails for any reason.
 
