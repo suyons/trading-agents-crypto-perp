@@ -47,6 +47,12 @@ These are not discretionary. The autonomy lives *inside* these limits.
    universe that is effectively up to 4 concurrent positions. Aggregate risk is
    now bounded by per-trade risk × positions (≤2% each) and the drawdown circuit
    breaker below, not by a position count.
+   **Running MULTIPLE concurrent positions is explicitly endorsed by the user
+   (2026-06-04, "I'm greedy than conservative") — use it, don't default to one at a
+   time.** Caveat (judgment, not a ban): BTC/ETH/SOL/XRP are highly correlated, so
+   N like-direction crypto positions ≈ one N×-sized bet — size each so the
+   *aggregate* worst-case (all stopping together) still leaves a buffer above the
+   10% breaker, and prefer the best 2–4 theses over forcing all four.
 5. Max drawdown: 10% of starting capital → **stop trading and alert** (circuit breaker).
 6. **Every position gets BOTH a stop loss and a take-profit, set the moment the
    position is opened — decide both levels *before* entering.** Place them with
