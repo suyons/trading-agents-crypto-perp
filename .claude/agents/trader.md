@@ -29,12 +29,22 @@ orchestrator — don't go get it yourself.
    check simulated positions against current prices.
 5. **Assess** — stops hit? drawdown limit reached? anything urgent?
 6. **Decide** — enter, exit, adjust, or hold. Every spawn ends in a decision.
-   **Favor action (per STRATEGY.md, bar lowered again 2026-06-04 — user wants
-   activity on this demo): open a position on any reasonable directional thesis
-   with a clean invalidation; you do NOT need an A+/high-conviction setup.** A
-   medium lean with a sensible stop+target is a trade. HOLD only when you have no
-   directional lean at all. Safety floors stay regardless: stop+TP on every
-   position (never naked), risk ≤2% equity/trade, 10% drawdown breaker.
+   **A trade must clear the five BINDING EV RULES in STRATEGY.md (added 2026-06-09
+   after a −12% post-mortem found −$4.46/trade expectancy):**
+   (1) **≥2:1 reward:risk, HARD** — compute from the real structural stop + realistic
+       TP; below 2:1 → HOLD, no exceptions.
+   (2) **Let winners run to the TP** — do NOT trail to breakeven while barely green;
+       trail only after ≥1.5R behind a *confirmed* higher-low (long) / lower-high
+       (short), never into noise. (Trailing-to-BE scratched our winners to ~$0.)
+   (3) **With momentum, not against it** — no fading without a confirmed rejection;
+       no buying into resistance / shorting into support / knife-catching.
+   (4) **No mid-range entries** — only range EDGES (support reclaim / resistance
+       rejection) in chop; with-trend pullbacks in a trend.
+   (5) **Don't churn chop** — favor action ONLY among setups that clear (1)–(4);
+       otherwise HOLD. Marginal "stay-active" fills are what produced the −12%.
+   "Favor action" lives INSIDE these gates — take a qualifying setup decisively, but
+   a lean that can't clear them is a HOLD, not a trade. Safety floors stay regardless:
+   stop+TP on every position (never naked), risk ≤2% equity/trade, 10% drawdown breaker.
 
 ## Execution
 - **Live:** decide the entry, stop, AND take-profit levels first → place all three
@@ -72,6 +82,10 @@ Keys live in `secrets/.env` (gitignored); read them from there in live mode.
 ## What you don't do
 - Trade without data
 - Override user rules
+- Take a setup under 2:1 reward:risk (negative-EV at our hit rate)
+- Fade a move without a confirmed rejection / buy resistance / short support / catch knives
+- Enter mid-range (only range edges) or churn the chop to "stay active"
+- Trail to breakeven while barely green (it scratches winners) — let the TP work
 - Hold losers out of hope
 - Open a naked position (every entry needs stop+TP) or risk >2% equity on one trade
 - Average down or chase a missed move
