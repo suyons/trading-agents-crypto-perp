@@ -1,164 +1,122 @@
 # Trading Strategy — Autonomous (Claude-driven)
 
-The edge under test is **Claude's own judgment**, not a mechanical system. There
-are **no technical indicators** — no moving averages, RSI, MACD, fixed
-candle/volume triggers, or backtested signals. Each cycle, Claude reads the real
-market state and decides with reasoning. This is intentionally discretionary and
-unproven; the risk guardrails below are the hard limits that keep it survivable.
+## Technical Analysis Framework
 
-## How decisions are made (no indicators)
+Primary timeframe: **15m candles** — pull the last 100 bars per pair (`klines <PAIR> 15m 100` = ~25h of data). The last **completed (closed)** 15m bar is the primary structure reference. Never base a decision on the in-progress candle.
 
-Every spawn, the trader pulls **real market data** via the active exchange
-adapter and reasons over it:
+Each cycle the trader applies four analysis layers, then gates any setup through the five BINDING EV RULES before acting.
 
-- Current price, mark price, 24h change, 24h range (high/low), 24h volume
-- Funding rate and next funding time (crowding / cost-of-carry signal)
-- Recent raw price action (klines as *context to reason over*, never as an
-  indicator trigger)
-- Optionally: news / catalysts / sentiment via web search
+---
 
-From that, Claude forms a thesis: direction, conviction, and a reason. **Favor
-action — but only among setups that clear the five BINDING EV RULES below**
-(≥2:1 reward:risk, with-momentum, at a range edge, right regime, let winners run).
-"Favor action" means: when a setup DOES clear those gates, take it — don't sit out
-a qualifying trade waiting for perfection. It does NOT mean take low-quality fills:
-a medium-confidence lean that can't make ≥2:1 from a clean structural stop, or that
-fades a move / sits mid-range, is a **HOLD**, not a trade. The post-mortem proved
-that taking marginal setups "to be active" is exactly what produced −12%. Quality
-gates first; action within them.
+### Layer 1 — Price Action
 
-This is a deliberate, user-directed setting and it has swung (all 2026-06-03 →
-2026-06-04): lowered to "trade more often" → raised to A+-only after a 5-trade
-losing streak → **lowered again 2026-06-04** when the user said, on this *demo*
-account, to stop sitting out and "be free to open any positions." Current setting:
-**favor action / low bar.** This governs only *how readily* you act — it does NOT
-relax the hard guardrails below. Two safety floors are NON-NEGOTIABLE regardless
-of the bar: **every position gets a stop AND a take-profit (never naked), and risk
-stays ≤2% equity/trade**, and the 10% drawdown breaker still halts trading. Within
-those, take setups freely.
+- Map the **trend structure**: higher-highs / higher-lows (uptrend), lower-highs / lower-lows (downtrend), or range-bound chop.
+- Identify **key levels**: recent swing highs/lows, structure breaks (the last level that broke and flipped), and range edges (the most recent swing high = resistance, swing low = support).
+- Read **candlestick context at levels**: rejection wicks, engulfing bars, inside bars. These confirm or deny a level hold — they don't trigger trades on their own, but they add weight.
+- Classify the current regime: trending, ranging, or transitional. The regime governs which entries are valid (Rule 4 below).
 
-## What the track record says — BINDING EV RULES (added 2026-06-09 post-mortem)
+---
 
-A full reverse-engineering of the first ~23 closed trades ($999.99 → ~$877, −12%)
-found the losing was **structural, not bad luck**. The numbers:
-**26% win rate** at a realized **~1.37:1** reward:risk → breakeven needs **42%** →
-**expectancy −$4.46/trade.** Plus ~$43 bled to fees/funding from over-trading chop.
-The five leaks and their fixes are now RULES, ranked by impact:
+### Layer 2 — Order Blocks (OBs)
 
-1. **Minimum reward:risk = 2:1, HARD. Below 2:1 → NO TRADE (HOLD).** The math:
-   at our ~26–35% hit rate we need ≥2:1 just to survive; we were taking 1.16–1.5:1.
-   This is the single biggest fix. Compute it from the *real* stop/TP before entry;
-   if the clean structural stop and the realistic target don't give ≥2:1, pass.
+An order block is the **last significant candle before a strong impulsive move** — it marks where institutional orders were placed.
 
-2. **Stop truncating winners. LET WINNERS RUN TO THE TP.** Every win that actually
-   paid HIT its take-profit (or a stop trailed only after a real run). Every trade
-   we "managed" by trailing to breakeven while it was barely green got SCRATCHED to
-   ~$0 (2+ SOL longs gave back +$8 / +$18 peaks). Therefore:
-   - Do NOT move the stop to breakeven while a trade is only marginally green.
-   - Move the stop ONLY after ≥**1.5R** of open profit, and ONLY behind a
-     **confirmed** structural pivot (a *completed* higher-low for a long / lower-high
-     for a short) — NEVER into the live noise band, NEVER "to BE because it's green."
-   - Default to letting price reach the pre-set TP. The TP is the plan; honor it.
+- **Bullish OB**: the last *down-close* (red) candle (or cluster of red candles) immediately before a strong bullish impulse. Price often returns to this zone for support on retracements.
+- **Bearish OB**: the last *up-close* (green) candle (or cluster) immediately before a strong bearish impulse. Price often returns to this zone for resistance on retracements.
+- **OB zone**: use the body (open–close) of the OB candle as the core zone. Wicks extending beyond are noted as the full range but the body is the primary magnet.
+- **Validity**: only mark OBs that preceded a *strong, impulsive, multi-candle move* away from them. A weak drift does not validate an OB. Fresh OBs (not yet revisited) are stronger than stale ones (already tapped ≥2 times).
+- **Using OBs**: enter long at a bullish OB on a pullback (look for a rejection wick or confirmation candle closing back above the OB's high). Enter short at a bearish OB on a retrace (look for a rejection candle closing back below the OB's low). Stop goes just beyond the OB's extreme (below the wick low for a bullish OB long, above the wick high for a bearish OB short).
 
-3. **Trade WITH momentum, not against it.** The loss cluster is counter-trend
-   FADES in chop — shorting bounces, buying tops, catching knives. Every winner was
-   with-structure / with-trend. RULE: no fading a move without a *confirmed
-   rejection* at a level; no buying into resistance; no shorting into support.
+---
 
-4. **Regime filter — NO MID-RANGE ENTRIES.** In a range/chop regime, trade ONLY the
-   range EDGES (buy a support reclaim, short a resistance rejection) and only with
-   ≥2:1 to the opposite edge. In a trend, trade with-trend pullbacks. Mid-range
-   "favor-action" fills repeatedly scratched — they are now BANNED.
+### Layer 3 — Fibonacci Retracement
 
-5. **Don't overtrade chop (fees are real).** "Favor action" means do not skip a
-   QUALIFYING setup (≥2:1 + with-momentum + at an edge); it does NOT mean take
-   marginal ones. Frequency is fine when quality holds; churning low-EV trades just
-   feeds fees. Patience at the edge IS the edge in chop.
+- Identify the **most significant recent swing leg** on the 15m chart — the impulse move that matters (the last strong directional leg, not noise).
+- Apply standard Fib levels: **0.236 / 0.382 / 0.5 / 0.618 / 0.786**.
+- **In an uptrend**: look for long entries at the **0.382–0.618 retracement** of the most recent bullish impulse leg. The 0.618 is the "golden ratio" retracement — deep but still valid; below it suggests the prior impulse is failing.
+- **In a downtrend**: look for short entries at the **0.382–0.618 retracement** of the most recent bearish impulse leg.
+- **Confluence is everything**: a Fib level landing on an OB zone, a structural S/R level, or an Elliott Wave target is a high-probability entry area. A lone Fib level with no other confluence is weak — weight it accordingly.
+- Stop placement: below the swing low (for longs) or above the swing high (for shorts) — not inside the Fib zone. This is also where the 2:1 R:R check starts.
 
-**One-line soul:** *small losses, big winners — take only ≥2:1 with-momentum setups
-at range edges, and let them run to target.* These rules sit ABOVE "favor action":
-favor action operates only among setups that already clear all five.
+---
 
-## Risk guardrails (HARD rules — non-negotiable)
+### Layer 4 — Elliott Wave
 
-These are not discretionary. The autonomy lives *inside* these limits.
+Basic 5-wave impulse (Waves 1–5) in the direction of the trend; 3-wave correction (A–B–C) against it.
 
-1. Symbols: BTC, ETH, SOL, XRP USDT perpetuals — the active exchange's native
-   symbols (see `exchanges/EXCHANGE_CONFIG.md`; currently Gate `BTC_USDT` etc.).
-2. Max leverage: 20x.
-3. Max risk per trade: **2% of equity**. Size so (entry→stop distance) × size ≤ 2% equity.
-4. Max open positions: **no fixed total cap** — but still **one position per
-   asset** (no stacking/averaging the same symbol). With the current 4-symbol
-   universe that is effectively up to 4 concurrent positions. Aggregate risk is
-   now bounded by per-trade risk × positions (≤2% each) and the drawdown circuit
-   breaker below, not by a position count.
-   **Running MULTIPLE concurrent positions is explicitly endorsed by the user
-   (2026-06-04, "I'm greedy than conservative") — use it, don't default to one at a
-   time.** Caveat (judgment, not a ban): BTC/ETH/SOL/XRP are highly correlated, so
-   N like-direction crypto positions ≈ one N×-sized bet — size each so the
-   *aggregate* worst-case (all stopping together) still leaves a buffer above the
-   10% breaker, and prefer the best 2–4 theses over forcing all four.
-5. Max drawdown: 10% of the **breaker baseline** → **stop trading and alert**
-   (circuit breaker). **Baseline RESET to $908.45 on 2026-06-04** (was the original
-   $999.99) — user's explicit decision after a ~-9% drawdown left the account
-   pinned at the old breaker, to give fresh room to keep trading. So the active
-   breaker floor is **$817.6** (10% below $908.45), NOT $900. If equity ≤ $817.6 →
-   no new positions, flatten/protect, ALERT. (Note: real cumulative loss from the
-   true $999.99 start is larger than 10% if this floor is hit — the user accepted
-   that tradeoff when resetting.)
-6. **Every position gets BOTH a stop loss and a take-profit, set the moment the
-   position is opened — decide both levels *before* entering.** Place them with
-   the entry in one shot: `order <SYM> <SIDE> <QTY> --stop <SL> --tp <TP>`. The
-   *levels* are Claude's call, but the stop's loss must be ≤ 2% equity, and the
-   take-profit must be **≥2:1 reward:risk — HARD minimum (EV rule 1); below 2:1 do
-   NOT enter.** The stop is the hard safety net (if it can't be placed, the entry is
-   auto-closed); the take-profit is the target — let price reach it (EV rule 2). No
-   naked positions — never hold without a stop.
+**Hard rules (violations invalidate the count):**
+- Wave 2 never retraces more than 100% of Wave 1.
+- Wave 3 is never the shortest among Waves 1, 3, 5.
+- Wave 4 never overlaps Wave 1's price territory (in a standard non-diagonal impulse).
 
-## Decision menu (every spawn ends in one)
+**How to use it:**
+- Identify which wave the current price action is in. Label from the most recent clear swing low (for a bullish count) or high (for a bearish count).
+- **Wave 3 trades** (highest conviction): strong, extended moves — target ≥1.618× Wave 1's length from the Wave 2 low. Enter at the Wave 2 retracement (ideally at 0.382–0.618 Fib + bullish OB).
+- **Wave 5 trades** (lower conviction): often truncates or shows momentum divergence — use tighter targets (equal to Wave 1, or 0.618× Wave 1 if waves 1–3 are extended). Watch for divergence; exit before the target if momentum fades.
+- **After a 5-wave impulse**: expect a 3-wave A–B–C correction back to at minimum the Wave 4 territory. Use this to anticipate where the next impulsive leg begins.
+- **A–B–C corrective targets**: Wave C often equals Wave A in length. Wave B retraces 0.382–0.786 of Wave A.
+- Apply Elliott counts primarily to **BTC** (clearest structure); use as confirmation on ETH/SOL/XRP, which follow BTC's lead.
 
-Before acting, articulate the decision as a **falsifiable thesis + an explicit
-invalidation** (the concrete condition that proves it wrong). If you cannot state
-a clear invalidation, you do not have a trade — default to HOLD. Both are recorded
-in every `TRADE_LOG.md` entry (see its format). State the thesis as a claim you
-could be proven wrong on, not a vague lean; the invalidation must be observable
-(a price level / structural break), and for an ENTER it should line up with where
-the stop sits.
+---
 
-- **ENTER** — clear thesis + explicit invalidation + acceptable risk, AND it clears
-  all five EV rules: ≥2:1 reward:risk, with-momentum (not a fade lacking a confirmed
-  rejection), at a range EDGE (not mid-range), in the right regime. Decide stop AND
-  take-profit first, then enter with both attached (`--stop` + `--tp`). If it doesn't
-  clear ≥2:1 at a clean structural stop, it is NOT a trade — HOLD.
-- **EXIT** — thesis invalidated, target reached, or risk/time no longer justified.
-- **ADJUST** — trail the stop ONLY after ≥1.5R of open profit and ONLY behind a
-  *confirmed* structural pivot (completed higher-low for a long / lower-high for a
-  short) — NEVER to breakeven just because it's green, NEVER into the live noise band
-  (EV rule 2: that scratched our winners). Trim/add within risk limits. No averaging
-  *down* on losers. Default: leave the position to run to its pre-set TP.
-- **HOLD** — only when you genuinely have no directional lean, or you're already
-  correctly positioned. NOT the default: if you can state a thesis + invalidation
-  with a sensible stop and target, take it. When you do hold, state what you're
-  watching: the trigger that would create a setup.
+### Confluence — the entry standard
 
-## Discipline (what NOT to do)
+**Strongest setups (take decisively):** ≥2 frameworks agree on the same level/direction.
+- **Long**: price retraces to a Fib 0.382–0.618 that lands on a bullish OB, within Wave 2 or Wave 4 territory, AND price action shows a confirmed rejection (wick or engulfing candle closing back above the OB high).
+- **Short**: price retraces to a Fib 0.382–0.618 that lands on a bearish OB, within Wave B or at a key resistance level, AND a rejection candle confirms.
 
-- Don't chase a move you missed — wait for the next setup.
-- Don't average down on a loser — the stop handles it.
-- **Don't take any setup under 2:1 reward:risk** — it's negative-EV at our hit rate.
-- **Don't fade a move without a confirmed rejection** (no shorting into support / no
-  buying into resistance / no knife-catching) — trade WITH momentum.
-- **Don't enter mid-range** — only range edges (support reclaim / resistance reject).
-- **Don't trail to breakeven while barely green** — it scratched our winners; trail
-  only after ≥1.5R behind confirmed structure, else let the TP work.
-- **Don't churn the chop to "stay active"** — fees compound; patience at the edge is
-  the edge. Favor action only among setups that clear the five EV rules.
-- Don't hold through known high-impact news/announcements.
-- Don't override the risk guardrails for any reason.
+**Single-framework setups (require stronger confirmation):** only one layer is calling the level. These are lower conviction — require a very clear price action confirmation (full engulfing candle, sharp rejection wick) before entering. Still must clear all five EV rules.
+
+**No-confluence setups: DO NOT ENTER** — if none of the four layers agree on a level/direction, there is no trade. HOLD.
+
+---
+
+## Risk guardrails (HARD — non-negotiable)
+
+1. **Symbols**: BTC, ETH, SOL, XRP USDT perpetuals — Gate `BTC_USDT` / `ETH_USDT` / `SOL_USDT` / `XRP_USDT` (per `exchanges/EXCHANGE_CONFIG.md`).
+2. **Max leverage**: 20x.
+3. **Max risk per trade**: **2% of equity**. Size so `(entry − stop) × qty ≤ 2% equity`.
+4. **Positions**: one per asset (no stacking/averaging the same symbol). Up to 4 concurrent positions. Multiple concurrent positions are explicitly endorsed — use the best 2–4 theses, don't force all four. Caveat: BTC/ETH/SOL/XRP are correlated — size so the aggregate worst-case (all stopping together) still clears the drawdown floor.
+5. **Max drawdown**: 10% of the breaker baseline → **stop trading and alert**. Active baseline: **$1,000.00** (testnet reload 2026-06-11), floor **$900.00**. If equity ≤ $900 → no new positions, flatten, alert.
+6. **Every position gets BOTH a stop loss AND a take-profit**, set atomically on entry: `order <SYM> <SIDE> <QTY> --stop <SL> --tp <TP>`. Stop ≤ 2% equity loss. TP must give ≥2:1 R:R. No naked positions, ever.
+
+---
+
+## Five BINDING EV RULES (post-mortem 2026-06-09 — non-negotiable)
+
+1. **≥2:1 reward:risk, HARD.** Compute from the real structural stop + realistic TP. Below 2:1 → HOLD, no exceptions.
+2. **Let winners run to the TP.** No trailing to breakeven while barely green — it scratches winners. Trail only after ≥1.5R open profit behind a *confirmed* structural pivot (completed higher-low for long / lower-high for short). Never trail into the live noise band. Default: let the TP work.
+3. **Trade WITH momentum.** No fading without a confirmed rejection. No buying into resistance. No shorting into support. No knife-catching.
+4. **No mid-range entries.** Only range edges (support reclaim / resistance rejection) in chop; with-trend pullbacks to OB/Fib confluence in a trend. Mid-range = no edge = banned.
+5. **Don't churn chop.** Favor action ONLY among setups that clear (1)–(4). Otherwise HOLD.
+
+---
+
+## Decision menu
+
+Every spawn ends in one of these. State a **falsifiable thesis + explicit invalidation** before acting.
+
+- **ENTER** — multi-framework confluence (≥2 layers agree), ≥2:1 R:R, with-momentum, at a range edge or corrective pullback target. Place stop + TP atomically on entry. If it can't clear ≥2:1 at a clean structural stop, HOLD.
+- **EXIT** — thesis invalidated, TP reached, or risk/time no longer justified.
+- **ADJUST** — trail stop only after ≥1.5R open profit, behind a confirmed structural pivot. Never to BE while barely green. Never into noise. Default: let TP work.
+- **HOLD** — no qualifying setup. State the specific level and condition that would create one.
+
+---
+
+## Discipline
+
+- No chasing missed moves.
+- No averaging down.
+- No setup under 2:1 R:R.
+- No fading without confirmed rejection.
+- No mid-range entries.
+- No trailing to BE while barely green.
+- No churning chop.
+- No holding through known high-impact news.
+- No overriding risk guardrails.
+
+---
 
 ## Mode
 
-Set in `exchanges/EXCHANGE_CONFIG.md`. Currently **Gate.io `mode: live`,
-`network: testnet`** — real order execution against demo funds (no real money).
-`paper` simulates fills at real prices; `network: mainnet` is real money and only
-ever on explicit user instruction.
+`exchanges/EXCHANGE_CONFIG.md`: currently **Gate.io `mode: live`, `network: testnet`** — real execution, demo funds. `network: mainnet` = real money, explicit user decision only.

@@ -64,18 +64,22 @@ notify/telegram_listen.py     # inbound NL bridge -> orchestrator (two-way; chat
 
 ## Current strategy (summary — canonical lives in `strategy/STRATEGY.md`)
 
-**Fully autonomous, Claude-driven — no technical indicators.** Each cycle the
-trader reasons over real market data (price, 24h range, funding, raw price
-action, optional news) and decides discretionarily, stating a falsifiable thesis
-and its invalidation. Unproven by design. **Live execution on Gate.io testnet**
-(demo funds, ~$1k). Pairs BTC/ETH/SOL/XRP USDT perps (canonical list in
-`exchanges/EXCHANGE_CONFIG.md`).
+**Fully autonomous, Claude-driven — four-layer TA framework on 15m candles.**
+Each cycle the trader pulls the last 100 completed 15m bars per pair and applies:
+1. **Price action** — trend structure, key S/R, regime classification
+2. **Order blocks** — last significant candle before an impulse (institutional zones)
+3. **Fibonacci retracement** — 0.382–0.618 pullback levels on recent impulse legs
+4. **Elliott Wave** — 5-wave impulse / 3-wave corrective count; Wave 3 entries preferred
+
+Entries require **multi-framework confluence (≥2 layers agree)** plus all five
+BINDING EV RULES: ≥2:1 R:R (hard), let winners run, with-momentum, no
+mid-range, no churn. **Live execution on Gate.io testnet** (demo funds, $1k
+reset 2026-06-11). Pairs BTC/ETH/SOL/XRP USDT perps.
 
 Risk guardrails (hard limits the autonomy lives inside):
 - Max leverage 20x · 1 position per asset, no fixed total cap · risk ≤2% equity/trade
-- Every position gets a stop loss AND a take-profit immediately (levels
-  discretionary; stop loss ≤2% equity, aim ≥1.5:1 reward:risk)
-- Max drawdown 10% → stop and alert
+- Every position gets a stop loss AND a take-profit immediately (≥2:1 R:R hard minimum)
+- Max drawdown 10% of baseline ($1,000 baseline → $900 floor) → stop and alert
 - No chasing, no averaging down, no holding through known news
 
 ## Modes
