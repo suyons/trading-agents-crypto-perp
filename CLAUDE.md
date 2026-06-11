@@ -112,36 +112,23 @@ which is an explicit user decision, never the agent's. Keys come from
 
 ## Notifications & control (Telegram)
 
-Channel is swappable like the exchange. Token + chat_id live in `secrets/.env`
-(`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`). All notifications are best-effort — a
-Telegram failure must never break a trading cycle.
+**Telegram is currently OFF entirely** (user decision 2026-06-09). The code
+(`notify/telegram.py`, `notify/telegram_listen.py`) is intact but not invoked.
+The hourly cron produces in-session summaries only — no outbound Telegram sends,
+no inbound bridge. Do NOT send Telegram or start the bridge unless the user
+explicitly re-enables it. Token + chat_id remain in `secrets/.env` for when it's
+re-enabled.
+
+When Telegram is active, the protocol is:
 
 **Outbound** — `notify/telegram.py` (send/test/chatid). The **orchestrator** sends
-the *verified* hourly summary after reconciling against the exchange (the trader
-doesn't notify); drawdown/position events are prefixed `🚨 ALERT:`.
+the *verified* hourly summary; drawdown/position events are prefixed `🚨 ALERT:`.
 
-**Inbound (natural language)** — `notify/telegram_listen.py` is a thin BRIDGE,
-not a command parser. A script can't reason, so replies come from the Claude
-orchestrator. The bridge long-polls Telegram; on a message from the authorized
-`TELEGRAM_CHAT_ID` (others ignored) it appends to `state/bot_inbox.jsonl`, sends a
-typing indicator, and EXITS (`__INBOX__ n`) — which wakes the orchestrator. It
-runs only while the session is alive; the hourly cron relaunches it if it died.
-
-**Orchestrator bridge protocol** — when the bridge exits with pending inbox (you
-are notified the background task ended), do this, then continue:
-1. Read `state/bot_inbox.jsonl` — the queued user message(s).
-2. For each: interpret the free-form request, pull live data via the adapter,
-   reason, and reply with `notify/telegram.py send "..."`. Take any requested
-   action — analysis (just reply), `close`/`flatten` (adapter `close`+`cancel`),
-   `pause`/`resume` (create/remove `state/trading.paused`), or a full cycle / new
-   trade (spawn the `trader` sub-agent). Honor the same risk rules and chat-lock.
-3. Truncate `state/bot_inbox.jsonl` (only after replying).
-4. Relaunch the bridge in the background: `python3 notify/telegram_listen.py`.
-
-State files (all gitignored): `bot_inbox.jsonl` (queue), `bot_offset` (getUpdates
-cursor — prevents message loss across the exit/relaunch handoff), `trading.paused`
-(pause flag the hourly cron honors). Each message round-trips through an
-orchestrator turn, so expect ~tens of seconds of latency.
+**Inbound (natural language)** — `notify/telegram_listen.py` long-polls Telegram;
+on a message from the authorized `TELEGRAM_CHAT_ID` it appends to
+`state/bot_inbox.jsonl` and EXITS — waking the orchestrator. Orchestrator reads the
+inbox, interprets the request, pulls live data, replies, acts, truncates the inbox,
+and relaunches the bridge.
 
 ```
 python3 notify/telegram.py test            # outbound: connection ping
@@ -151,35 +138,32 @@ python3 notify/telegram_listen.py          # inbound: run the NL bridge (backgro
 
 ## Status
 
-**LIVE on Gate.io testnet (validated 2026-06-02).** The Gate adapter
-(`exchanges/gate/adapter.py`, Gate APIv4 / HMAC-SHA512) runs real order execution
-against demo funds: `mode: live`, `network: testnet`. A full
-`order -> stop -> cancel -> close` round-trip was validated with clean I/O, and
-the trader runs **hourly** (session-only cron, `:07`) across BTC/ETH/SOL/XRP, each
-position bracketed with a stop + take-profit, and a verified summary is pushed to
-Telegram each cycle (`notify/telegram.py`).
+**LIVE on Gate.io testnet** (`mode: live`, `network: testnet` — real order execution,
+demo funds). Gate adapter (`exchanges/gate/adapter.py`, APIv4 / HMAC-SHA512) fully
+validated: `order → stop → cancel → close` round-trip clean. Trader runs **hourly**
+(session-only cron, fires at `:00`) across BTC/ETH/SOL/XRP with stop + take-profit
+on every position. Telegram is off; in-session summaries only.
 
-The earlier "401 / outage" blocker is **resolved**: the old testnet host
-`fx-api-testnet.gateio.ws` is permanently dead (502); the live host is
-`api-testnet.gateapi.io`. The keys were always valid. Prior corrupted-I/O claims
-(a "$10k balance", a "400 stop bug") are retracted and superseded — see
-`exchanges/gate/NOTES.md`.
+**Active strategy (2026-06-11):** four-layer TA on 15m candles — price action,
+order blocks, Fibonacci retracement, Elliott Wave. Entries require multi-framework
+confluence (≥2 layers). Testnet reloaded to $1,000; floor $900.
+
+Testnet host note: the old host `fx-api-testnet.gateio.ws` is dead (502); the live
+host is `api-testnet.gateapi.io`. Keys are valid. See `exchanges/gate/NOTES.md`.
 
 ## TODO
 
 Done:
-- [x] Baseline committed under the `young` (`suyons`) identity; secrets verified
-      never to leak (`secrets/` + `state/TRADE_STATE.md` gitignored).
-- [x] Built the Gate adapter to `exchanges/INTERFACE.md`; resolved the access
-      blocker (testnet host had moved) and validated a live order/stop/cancel/close
-      round-trip. Made `order --stop` fail-safe; added `cancel` and take-profit.
-- [x] Autonomous, no-indicator strategy with mandatory stop+take-profit and a
-      falsifiable thesis + invalidation per decision.
-- [x] Flipped `mode: live` (network stays `testnet` = demo funds); hourly trader
-      schedule armed.
+- [x] Gate adapter built, testnet host blocker resolved, live order round-trip validated.
+- [x] Autonomous hourly trading with stop+take-profit on every position.
+- [x] Five BINDING EV RULES added after post-mortem (≥2:1 R:R, let winners run,
+      with-momentum, no mid-range, no churn).
+- [x] Strategy rebuilt (2026-06-11): 15m candles, order blocks, Fibonacci,
+      Elliott Wave — multi-framework confluence required to enter.
+- [x] Testnet reloaded to $1,000; new baseline/floor set ($1,000/$900).
 
 Next:
-- [ ] Build a testnet track record (the hourly cycles accumulate it).
+- [ ] Build a track record under the new 4-layer TA strategy.
 - [ ] Rotate the GitHub PAT embedded in the git remote URL before any real money.
 - [ ] Only then consider `network: mainnet` (real money) — an explicit user
       decision, never the agent's.
