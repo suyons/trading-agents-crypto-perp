@@ -5,10 +5,14 @@ Coded-strategy live trader. Called each cycle by the orchestrator cron.
 Generates signals from deterministic coded strategies (no LLM), sizes
 positions at 2% risk per trade, places stop+TP atomically, logs, and commits.
 
-Strategy assignments (both IS and OOS Sharpe > 1 required):
-  BTC_USDT → rsi_mr   (IS 2.73 / OOS 3.47)
-  SOL_USDT → rsi_mr   (IS 1.61 / OOS 2.13)
-  ETH_USDT, XRP_USDT  → skipped (IS/OOS inconsistent)
+Strategy assignments (5-yr Binance backtest, both IS+OOS Sharpe > 1):
+  BTCUSDT → ema_cross  (IS 0.95 / OOS 1.80, 1823 OOS trades)
+  ETHUSDT → donchian   (IS 1.82 / OOS 1.61, 1982 OOS trades)
+  SOLUSDT → donchian   (IS 2.10 / OOS 1.57, 1763 OOS trades)
+  XRPUSDT → donchian   (IS 1.34 / OOS 1.33, 2037 OOS trades)
+
+rsi_mr failed on all 4 symbols over 5 years (OOS Sharpe negative).
+Symbols use Binance format (BTCUSDT etc.).
 """
 import json
 import math
@@ -29,8 +33,10 @@ from backtest.strategies import REGISTRY
 # ── Config ────────────────────────────────────────────────────────────────────
 
 STRATEGY_MAP = {
-    "BTC_USDT": "rsi_mr",
-    "SOL_USDT": "rsi_mr",
+    "BTCUSDT": "ema_cross",
+    "ETHUSDT": "donchian",
+    "SOLUSDT": "donchian",
+    "XRPUSDT": "donchian",
 }
 
 RISK_PCT    = 0.02
@@ -38,16 +44,15 @@ MIN_RR      = 1.9   # reject if R:R at actual fill < this (allows small slippage
 WARMUP_BARS = 220   # bars needed to stabilise 200-period EMA
 
 # Minimum tradeable qty per symbol (coin units)
-MIN_QTY = {"BTC_USDT": 0.001, "ETH_USDT": 0.01, "SOL_USDT": 0.1, "XRP_USDT": 1.0}
-# Decimal places for qty rounding
-QTY_DECIMALS = {"BTC_USDT": 3, "ETH_USDT": 2, "SOL_USDT": 1, "XRP_USDT": 0}
+MIN_QTY      = {"BTCUSDT": 0.001, "ETHUSDT": 0.01, "SOLUSDT": 0.1, "XRPUSDT": 1.0}
+QTY_DECIMALS = {"BTCUSDT": 3,     "ETHUSDT": 2,    "SOLUSDT": 1,   "XRPUSDT": 0}
 
 
 # ── Adapter helper ────────────────────────────────────────────────────────────
 
 def adp(*args):
     r = subprocess.run(
-        ["python3", os.path.join(ROOT, "exchanges/gate/adapter.py")] + [str(a) for a in args],
+        ["python3", os.path.join(ROOT, "exchanges/binance/adapter.py")] + [str(a) for a in args],
         capture_output=True, text=True, cwd=ROOT, timeout=30,
     )
     if r.returncode != 0:
