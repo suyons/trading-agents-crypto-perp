@@ -90,6 +90,26 @@ def last_signal(df: pd.DataFrame, strat_name: str):
 
 # ── State helpers ─────────────────────────────────────────────────────────────
 
+def read_stops() -> dict:
+    """Return {symbol: stop_price} from TRADE_STATE.md."""
+    path = os.path.join(ROOT, "state/TRADE_STATE.md")
+    stops, sym = {}, None
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("- symbol:"):
+                    sym = line.split(":", 1)[1].strip()
+                elif line.startswith("stop:") and sym:
+                    try:
+                        stops[sym] = float(line.split(":", 1)[1].strip())
+                    except ValueError:
+                        pass
+    except FileNotFoundError:
+        pass
+    return stops
+
+
 def read_floor() -> float:
     path = os.path.join(ROOT, "state/TRADE_STATE.md")
     try:
@@ -102,14 +122,16 @@ def read_floor() -> float:
     return 900.0
 
 
-def write_state(balance: float, equity: float, positions: list, floor: float):
+def write_state(balance: float, equity: float, positions: list, floor: float, stops: dict = None):
     from backtest.fetch import fetch_all  # just for the import guard
     path = os.path.join(ROOT, "state/TRADE_STATE.md")
     baseline = equity if equity > floor / 0.9 else floor / 0.9
+    stops = stops or {}
     pos_yaml = "  []\n" if not positions else "".join(
         f"  - symbol: {p['symbol']}\n    size: {p['positionAmt']}\n"
         f"    entry: {p['entryPrice']}\n    mark: {p['markPrice']}\n"
         f"    upnl: {p.get('unrealisedPnl', 0)}\n"
+        + (f"    stop: {stops[p['symbol']]}\n" if p['symbol'] in stops else "")
         for p in positions
     )
     content = (
@@ -166,11 +188,39 @@ def main():
     upnl     = sum(float(p.get("unrealisedPnl", 0)) for p in raw_pos)
     equity   = balance + upnl
     floor    = read_floor()
+    stops    = read_stops()  # {symbol: stop_price} from last write_state
 
     open_by_sym = {p["symbol"]: p for p in raw_pos}
     print(f"  Balance ${balance:.2f}  uPnL ${upnl:+.2f}  Equity ${equity:.2f}  Floor ${floor:.2f}")
 
     decisions = []
+
+    # Soft-stop check: close any position that has breached its stored stop price
+    for sym, pos in list(open_by_sym.items()):
+        if sym not in stops:
+            continue
+        stop_px  = stops[sym]
+        mark_px  = float(pos["markPrice"])
+        amt      = float(pos["positionAmt"])
+        breached = (amt > 0 and mark_px <= stop_px) or (amt < 0 and mark_px >= stop_px)
+        if breached:
+            print(f"\n  [{sym}] SOFT-STOP triggered: mark {mark_px} vs stop {stop_px} — closing")
+            try:
+                adp("close", sym)
+                adp("cancel", sym)  # cancel orphaned TP limit order
+                decisions.append(f"STOP {sym} mark={mark_px} stop={stop_px}")
+                del open_by_sym[sym]
+            except Exception as e:
+                print(f"    close failed: {e}")
+                decisions.append(f"STOP FAILED {sym}: {e}")
+
+    # Refresh equity after any stop closes
+    if any(d.startswith("STOP ") for d in decisions):
+        raw_pos  = adp("positions")
+        balance  = float(adp("balance")[0]["balance"])
+        upnl     = sum(float(p.get("unrealisedPnl", 0)) for p in raw_pos)
+        equity   = balance + upnl
+        open_by_sym = {p["symbol"]: p for p in raw_pos}
 
     # Floor breach — no new entries
     if equity <= floor:
@@ -181,11 +231,12 @@ def main():
         for symbol, strat_name in STRATEGY_MAP.items():
             print(f"\n  [{symbol}]")
 
-            # Already in a position — stop/TP handles the exit
+            # Already in a position — TP limit (exchange) or soft-stop (next cycle) handles exit
             if symbol in open_by_sym:
                 p = open_by_sym[symbol]
+                stop_px = stops.get(symbol, "?")
                 print(f"    HOLD — position open: size={p['positionAmt']} "
-                      f"mark={p['markPrice']} uPnL={p.get('unrealisedPnl', '?')}")
+                      f"mark={p['markPrice']} stop={stop_px} uPnL={p.get('unrealisedPnl', '?')}")
                 decisions.append(f"HOLD {symbol} (open position)")
                 continue
 
@@ -243,6 +294,9 @@ def main():
             try:
                 result = adp("order", symbol, side, str(qty),
                              "--stop", f"{stop:.6g}", "--tp", f"{tp:.6g}")
+                # Persist the stop price so the soft-stop check can use it next cycle
+                if "stop_price" in result:
+                    stops[symbol] = result["stop_price"]
                 print(f"    → {result}")
                 decisions.append(
                     f"ENTER {symbol} {side} qty={qty} entry≈{entry:.5g} "
@@ -258,7 +312,10 @@ def main():
     upnl2    = sum(float(p.get("unrealisedPnl", 0)) for p in raw_pos2)
     equity2  = balance2 + upnl2
 
-    write_state(balance2, equity2, raw_pos2, floor)
+    # Only keep stops for symbols that still have open positions
+    open_syms2  = {p["symbol"] for p in raw_pos2}
+    stops_live  = {s: v for s, v in stops.items() if s in open_syms2}
+    write_state(balance2, equity2, raw_pos2, floor, stops=stops_live)
 
     # Log entry
     pos_summary = (
@@ -266,7 +323,7 @@ def main():
         else ", ".join(
             f"{p['symbol']} {'LONG' if float(p['positionAmt']) > 0 else 'SHORT'} "
             f"{abs(float(p['positionAmt']))} @ {p['entryPrice']} "
-            f"stop≈{p.get('stopPrice','?')} uPnL={p.get('unrealisedPnl','?')}"
+            f"stop={stops_live.get(p['symbol'],'?')} uPnL={p.get('unrealisedPnl','?')}"
             for p in raw_pos2
         )
     )

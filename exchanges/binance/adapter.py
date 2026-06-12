@@ -318,45 +318,28 @@ def cmd_order(args):
     order = _signed_post("/fapi/v1/order", order_params)
     result = {"order": order}
 
-    # Stop-loss (opposite side, STOP_MARKET, closePosition)
+    # Stop-loss: STOP_MARKET rejected on this testnet (-4120); stored in state,
+    # enforced by live_trader's soft-stop check each cycle.
     if args.stop:
-        stop_side = "SELL" if side == "BUY" else "BUY"
-        stop_price = round(float(args.stop), price_prec)
-        try:
-            stop_order = _signed_post("/fapi/v1/order", {
-                "symbol":        c,
-                "side":          stop_side,
-                "type":          "STOP_MARKET",
-                "stopPrice":     stop_price,
-                "closePosition": "true",
-                "workingType":   "MARK_PRICE",
-            })
-            result["stop"] = stop_order
-        except SystemExit as e:
-            # Stop failed — close the position to avoid leaving it naked
-            print(f"WARN: stop placement failed ({e}), closing position", file=sys.stderr)
-            _signed_post("/fapi/v1/order", {
-                "symbol": c, "side": stop_side, "type": "MARKET",
-                "quantity": qty, "reduceOnly": "true",
-            })
-            raise
+        result["stop_price"] = round(float(args.stop), price_prec)
 
-    # Take-profit (opposite side, TAKE_PROFIT_MARKET, closePosition)
+    # Take-profit: LIMIT order at TP price (fills when mark price reaches TP).
     if args.tp:
         tp_side = "SELL" if side == "BUY" else "BUY"
         tp_price = round(float(args.tp), price_prec)
         try:
             tp_order = _signed_post("/fapi/v1/order", {
-                "symbol":        c,
-                "side":          tp_side,
-                "type":          "TAKE_PROFIT_MARKET",
-                "stopPrice":     tp_price,
-                "closePosition": "true",
-                "workingType":   "MARK_PRICE",
+                "symbol":      c,
+                "side":        tp_side,
+                "type":        "LIMIT",
+                "price":       tp_price,
+                "quantity":    qty,
+                "reduceOnly":  "true",
+                "timeInForce": "GTC",
             })
             result["tp"] = tp_order
         except SystemExit as e:
-            print(f"WARN: TP placement failed ({e}), stop still live", file=sys.stderr)
+            print(f"WARN: TP placement failed ({e})", file=sys.stderr)
 
     return result
 
@@ -393,13 +376,19 @@ def cmd_stop(args):
     p = next((x for x in pos if x["symbol"] == c), None)
     if not p:
         raise SystemExit(f"No open position on {c} to protect")
+    qty_prec = int(sym_info["quantityPrecision"]) if sym_info else 3
+    trigger = round(float(args.trigger), price_prec)
+    limit = round(trigger * (0.999 if side == "SELL" else 1.001), price_prec)
     return _signed_post("/fapi/v1/order", {
-        "symbol":        c,
-        "side":          side,
-        "type":          "STOP_MARKET",
-        "stopPrice":     round(float(args.trigger), price_prec),
-        "closePosition": "true",
-        "workingType":   "MARK_PRICE",
+        "symbol":      c,
+        "side":        side,
+        "type":        "STOP",
+        "stopPrice":   trigger,
+        "price":       limit,
+        "quantity":    round(abs(p["positionAmt"]), qty_prec),
+        "reduceOnly":  "true",
+        "workingType": "MARK_PRICE",
+        "timeInForce": "GTC",
     })
 
 
@@ -416,13 +405,18 @@ def cmd_tp(args):
     p = next((x for x in pos if x["symbol"] == c), None)
     if not p:
         raise SystemExit(f"No open position on {c} to protect")
+    qty_prec = int(sym_info["quantityPrecision"]) if sym_info else 3
+    trigger = round(float(args.trigger), price_prec)
     return _signed_post("/fapi/v1/order", {
-        "symbol":        c,
-        "side":          side,
-        "type":          "TAKE_PROFIT_MARKET",
-        "stopPrice":     round(float(args.trigger), price_prec),
-        "closePosition": "true",
-        "workingType":   "MARK_PRICE",
+        "symbol":      c,
+        "side":        side,
+        "type":        "TAKE_PROFIT",
+        "stopPrice":   trigger,
+        "price":       trigger,
+        "quantity":    round(abs(p["positionAmt"]), qty_prec),
+        "reduceOnly":  "true",
+        "workingType": "MARK_PRICE",
+        "timeInForce": "GTC",
     })
 
 
