@@ -108,9 +108,11 @@ def _read_json(req):
         return json.loads(raw.decode())
 
 
-def _public_get(endpoint, query=None):
+def _public_get(endpoint, query=None, force_mainnet=False):
+    # Market data (klines, snapshots) always from mainnet — testnet OHLCV differs.
+    host = HOSTS["mainnet"] if force_mainnet else _host()
     qs = parse.urlencode(query or {})
-    url = _host() + PREFIX + endpoint + (("?" + qs) if qs else "")
+    url = host + PREFIX + endpoint + (("?" + qs) if qs else "")
     req = request.Request(url, headers={"Accept": "application/json", "Accept-Encoding": "gzip"})
     return _read_json(req)
 
@@ -134,12 +136,12 @@ def _signed(method, endpoint, query=None, body_obj=None):
     return _read_json(req)
 
 
-def _ticker(contract):
-    return _public_get(f"/futures/{SETTLE}/tickers", {"contract": contract})[0]
+def _ticker(contract, mainnet=False):
+    return _public_get(f"/futures/{SETTLE}/tickers", {"contract": contract}, force_mainnet=mainnet)[0]
 
 
-def _contract_spec(contract):
-    return _public_get(f"/futures/{SETTLE}/contracts/{contract}")
+def _contract_spec(contract, mainnet=False):
+    return _public_get(f"/futures/{SETTLE}/contracts/{contract}", force_mainnet=mainnet)
 
 
 # --- public market data ---------------------------------------------------
@@ -181,6 +183,7 @@ def cmd_klines(args):
     rows = _public_get(
         f"/futures/{SETTLE}/candlesticks",
         {"contract": c, "interval": args.interval, "limit": args.limit},
+        force_mainnet=True,
     )
     step = _INTERVAL_SECONDS.get(args.interval, 3600) * 1000
     out = []
@@ -200,8 +203,8 @@ def cmd_klines(args):
 
 def cmd_snapshot(args):
     c = normalize_symbol(args.symbol)
-    t = _ticker(c)
-    spec = _contract_spec(c)
+    t = _ticker(c, mainnet=True)
+    spec = _contract_spec(c, mainnet=True)
     return {
         "symbol": c,
         "price": float(t["last"]),
