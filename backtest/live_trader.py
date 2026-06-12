@@ -202,6 +202,8 @@ def main():
         stop_px  = stops[sym]
         mark_px  = float(pos["markPrice"])
         amt      = float(pos["positionAmt"])
+        if mark_px <= 0:
+            continue  # invalid mark data — skip to avoid false trigger
         breached = (amt > 0 and mark_px <= stop_px) or (amt < 0 and mark_px >= stop_px)
         if breached:
             print(f"\n  [{sym}] SOFT-STOP triggered: mark {mark_px} vs stop {stop_px} — closing")

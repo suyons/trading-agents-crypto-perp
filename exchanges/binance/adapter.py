@@ -263,19 +263,20 @@ def cmd_balance(args):
 
 
 def cmd_positions(args):
-    d = _signed_get("/fapi/v2/account")
+    # positionRisk includes markPrice; account does not reliably populate it
+    rows = _signed_get("/fapi/v2/positionRisk")
     out = []
-    for p in d.get("positions", []):
+    for p in rows:
         amt = float(p["positionAmt"])
         if amt == 0:
             continue
         out.append({
-            "symbol":          p["symbol"],
-            "positionAmt":     amt,
-            "entryPrice":      float(p["entryPrice"]),
-            "markPrice":       float(p.get("markPrice") or 0),
-            "unrealisedPnl":   float(p["unrealizedProfit"]),
-            "leverage":        int(p.get("leverage") or 1),
+            "symbol":        p["symbol"],
+            "positionAmt":   amt,
+            "entryPrice":    float(p["entryPrice"]),
+            "markPrice":     float(p["markPrice"]),
+            "unrealisedPnl": float(p["unRealizedProfit"]),
+            "leverage":      int(p.get("leverage") or 1),
         })
     return out
 
