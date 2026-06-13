@@ -411,12 +411,10 @@ def cmd_tp(args):
     return _signed_post("/fapi/v1/order", {
         "symbol":      c,
         "side":        side,
-        "type":        "TAKE_PROFIT",
-        "stopPrice":   trigger,
+        "type":        "LIMIT",
         "price":       trigger,
         "quantity":    round(abs(p["positionAmt"]), qty_prec),
         "reduceOnly":  "true",
-        "workingType": "MARK_PRICE",
         "timeInForce": "GTC",
     })
 
