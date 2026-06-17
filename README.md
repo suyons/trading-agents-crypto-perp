@@ -177,5 +177,3 @@ Done:
 
 Next:
 - [ ] Build a live track record under the coded strategies.
-- [ ] Rotate the GitHub PAT embedded in the git remote URL before any real money.
-- [ ] Only then consider `network: mainnet` (real money) — explicit user decision.
