@@ -9,17 +9,18 @@ structure as hard dependencies:
 
 - **The runtime.** Migrated from OpenClaw (Gemini 3.1 Pro) → Claude Code. May
   change again. Don't bake `claude`/`openclaw` into file or module names.
-- **The exchange.** Currently Gate.io futures (testnet). Binance / Bybit / others
+- **The exchange.** Currently Binance USDT-M futures (testnet). Other exchanges
   must be a one-file swap — a new `exchanges/<name>/adapter.py` implementing
   `exchanges/INTERFACE.md` — never a rename or a refactor of the orchestration.
 
 ## Orchestration model
 
 - **Orchestrator ("Mission Control")** — the main session. Coordinates, reviews,
-  reports, and *audits the trader against the exchange*. Does **not** place trades
-  itself. Spawns the trader for decisions.
-- **Trader sub-agent** — defined in `.claude/agents/trader.md`. Spawned to make
-  and execute one decision cycle, then report. Stays in its lane (see contract).
+  and audits the coded trader against the exchange. Does **not** place trades
+  itself. Runs `backtest/live_trader.py` each cycle.
+- **Coded trader** — `backtest/live_trader.py`. Pure Python, deterministic. No
+  LLM involved in trade decisions. Generates signals from backtested strategies,
+  applies risk rules, executes, and logs.
 - **Exchange adapter** — isolated under `exchanges/<name>/`. The trader talks to
   the adapter's exchange-agnostic CLI (`exchanges/INTERFACE.md`), never to a
   specific exchange's quirks directly.
@@ -30,57 +31,56 @@ multiple traders in parallel without touching the orchestration logic.
 ## Layout
 
 ```
-CLAUDE.md                     # this file — orchestration + project contract
-README.md                     # human-facing overview
-.gitignore                    # keys/state excluded
-strategy/STRATEGY.md          # canonical trading rules
-exchanges/EXCHANGE_CONFIG.md  # active exchange + mode + network + pairs (NO keys)
-exchanges/INTERFACE.md        # the exchange-agnostic CLI contract every adapter implements
-exchanges/gate/adapter.py     # active adapter: Gate APIv4 futures (HMAC-SHA512)
-exchanges/gate/NOTES.md       # adapter notes / gotchas / validation record
-state/TRADE_STATE.md          # capital, open positions (gitignored — churns each spawn)
-state/TRADE_LOG.md            # append-only decision log (tracked — durable history)
-secrets/.env                  # API keys + Telegram token (gitignored — NEVER committed)
-.claude/agents/trader.md      # trader sub-agent definition
-notify/telegram.py            # outbound notifier (Telegram alerts; channel-swappable)
-notify/telegram_listen.py     # inbound NL bridge -> orchestrator (two-way; chat-locked)
+CLAUDE.md                        # this file — orchestration + project contract
+README.md                        # human-facing overview
+.gitignore                       # keys/state excluded
+strategy/STRATEGY.md             # legacy LLM strategy doc (kept for reference)
+exchanges/EXCHANGE_CONFIG.md     # active exchange + mode + network + pairs (NO keys)
+exchanges/INTERFACE.md           # the exchange-agnostic CLI contract every adapter implements
+exchanges/binance/adapter.py     # active adapter: Binance USDT-M futures (HMAC-SHA256)
+exchanges/gate/adapter.py        # retired adapter (Gate APIv4, kept for reference)
+state/TRADE_STATE.md             # capital, open positions (gitignored — churns each cycle)
+state/TRADE_LOG.md               # append-only decision log (tracked — durable history)
+secrets/.env                     # API keys + Telegram token (gitignored — NEVER committed)
+backtest/fetch.py                # fetch OHLCV from Binance mainnet (5-6 yr history)
+backtest/engine.py               # walk-forward backtester (IS/OOS split, Sharpe gate)
+backtest/strategies/             # coded strategies: ema_cross, rsi_mr, donchian
+backtest/live_trader.py          # live execution: signal → size → order → log
+backtest/run.py                  # CLI: fetch / backtest / gate
+notify/telegram.py               # outbound notifier (currently disabled)
+notify/telegram_listen.py        # inbound NL bridge (currently disabled)
 ```
 
-## Trader contract
+## Coded trader contract
 
-- Execute the strategy with precision. The user's rules are rules, not
-  suggestions. If `STRATEGY.md` is missing/incomplete, ask before trading.
-- Risk first: every position gets **both a stop loss and a take-profit**, decided
-  before entry and set the moment it opens (atomic `order --stop --tp`). Never
-  update state files until a trade is **confirmed**.
-- Every decision states a **falsifiable thesis + an explicit invalidation**; no
-  clear invalidation → no trade. Both go in every `TRADE_LOG.md` entry.
-- Every spawn ends in a decision — enter, exit, adjust, or hold. "No setup, hold"
-  is a valid and frequent outcome. Don't overtrade.
-- Stay in your lane: read/write only this project's trading files. Anything
-  outside, ask the orchestrator.
-- Reporting is tight: P&L ($ and %), open positions, last action + why, next
-  watch. 3–5 lines, no essays.
+- Signals come from backtested coded strategies only — no LLM interpretation.
+- Every strategy must pass the deployment gate: **OOS Sharpe > 1.0** on a proper
+  IS/OOS split before being assigned to a symbol.
+- Risk first: every position gets **both a stop loss and a take-profit**, placed
+  atomically at entry (`order --stop --tp`). Max risk 2% equity per trade.
+- Floor breach (equity ≤ floor) → halt new entries, log, wait.
+- Log every cycle to `TRADE_LOG.md` and git commit immediately after.
 
-## Current strategy (summary — canonical lives in `strategy/STRATEGY.md`)
+## Current strategy (backtested — canonical in `backtest/strategies/`)
 
-**Fully autonomous, Claude-driven — four-layer TA framework on 15m candles.**
-Each cycle the trader pulls the last 100 completed 15m bars per pair and applies:
-1. **Price action** — trend structure, key S/R, regime classification
-2. **Order blocks** — last significant candle before an impulse (institutional zones)
-3. **Fibonacci retracement** — 0.382–0.618 pullback levels on recent impulse legs
-4. **Elliott Wave** — 5-wave impulse / 3-wave corrective count; Wave 3 entries preferred
+**Deterministic coded strategies on 15m Binance USDT-M futures data.**
+Validated on 5-6 years of history (2019–2026), 70/30 IS/OOS split.
 
-Entries require **multi-framework confluence (≥2 layers agree)** plus all five
-BINDING EV RULES: ≥2:1 R:R (hard), let winners run, with-momentum, no
-mid-range, no churn. **Live execution on Gate.io testnet** (demo funds, $1k
-reset 2026-06-11). Pairs BTC/ETH/SOL/XRP USDT perps.
+| Symbol  | Strategy   | OOS Sharpe | OOS trades |
+|---------|------------|------------|------------|
+| BTCUSDT | ema_cross  | 1.80       | 1823       |
+| ETHUSDT | donchian   | 1.61       | 1982       |
+| SOLUSDT | donchian   | 1.57       | 1763       |
+| XRPUSDT | donchian   | 1.33       | 2037       |
 
-Risk guardrails (hard limits the autonomy lives inside):
-- Max leverage 20x · 1 position per asset, no fixed total cap · risk ≤2% equity/trade
-- Every position gets a stop loss AND a take-profit immediately (≥2:1 R:R hard minimum)
-- Max drawdown 10% of baseline ($1,000 baseline → $900 floor) → stop and alert
-- No chasing, no averaging down, no holding through known news
+`rsi_mr` failed on all 4 symbols over 5 years (OOS Sharpe negative) — what
+appeared as Sharpe 3–5 on 28 days of Gate data was regime luck, not edge.
+
+Risk guardrails (hard limits):
+- Max risk ≤ 2% equity per trade · 1 position per asset (up to 4 concurrent)
+- Every position: stop loss + take-profit set atomically at entry
+- Max drawdown 10% of baseline → halt new entries ($5,000 baseline → $4,500 floor)
+- R:R < 1.9 at actual fill price → skip
 
 ## Modes
 
@@ -88,24 +88,33 @@ Two independent switches in `EXCHANGE_CONFIG.md`:
 
 - **mode** — `live` places real orders via the adapter; `paper` simulates fills
   at real prices (local-memory only). Both read real market data.
-- **network** (exchanges that have a testnet, e.g. Gate) — `testnet` uses demo
-  funds (no real money); `mainnet` is real money.
+- **network** — `testnet` uses demo funds (no real money); `mainnet` is real money.
 
-**Current: Gate.io, `mode: live`, `network: testnet`** — real order execution
+**Current: Binance, `mode: live`, `network: testnet`** — real order execution
 against demo funds. Going to real money = `network: mainnet` (+ rotated keys),
-which is an explicit user decision, never the agent's. Keys come from
-`secrets/.env`.
+which is an explicit user decision, never the agent's. Keys from `secrets/.env`.
+
+## Backtest pipeline
+
+```bash
+python3 backtest/run.py fetch [--symbols BTCUSDT ...]   # download & cache history
+python3 backtest/run.py backtest [--strategy all]        # IS/OOS metrics
+python3 backtest/run.py gate [--strategy all]            # deployment gate check
+```
+
+Data: Binance USDT-M futures public API (`fapi.binance.com`), 5-6 yr history.
+Gate: OOS Sharpe > 1.0 required before a strategy is deployed to live trading.
+Cache: `backtest/cache/` (gitignored — regenerated on demand).
 
 ## Secrets & safety — read before committing
 
 - **Never commit API keys.** They go in `secrets/.env`, which is gitignored.
   Not in `CLAUDE.md`, not in `EXCHANGE_CONFIG.md`, not in any tracked file.
 - The git remote URL embeds a GitHub PAT — **rotate it before any real-money use.**
-- The Telegram bot token lives in `secrets/.env` too. It was pasted in plaintext
-  during setup, so consider `/revoke` in BotFather and replacing it.
-- The Gate keys are testnet/demo (no real money). Real money requires
+- The Telegram bot token lives in `secrets/.env` too.
+- Binance keys are testnet/demo (no real money). Real money requires
   `network: mainnet`, an explicit user decision.
-- `TRADE_STATE.md` is gitignored (it churns every spawn); `TRADE_LOG.md` is
+- `TRADE_STATE.md` is gitignored (it churns every cycle); `TRADE_LOG.md` is
   tracked as the durable record.
 - Live (testnet) execution is active by explicit user decision. Don't flip to
   `mainnet`, and don't widen risk guardrails, without an explicit ask.
@@ -114,56 +123,33 @@ which is an explicit user decision, never the agent's. Keys come from
 
 **Telegram is currently OFF entirely** (user decision 2026-06-09). The code
 (`notify/telegram.py`, `notify/telegram_listen.py`) is intact but not invoked.
-The hourly cron produces in-session summaries only — no outbound Telegram sends,
-no inbound bridge. Do NOT send Telegram or start the bridge unless the user
-explicitly re-enables it. Token + chat_id remain in `secrets/.env` for when it's
-re-enabled.
-
-When Telegram is active, the protocol is:
-
-**Outbound** — `notify/telegram.py` (send/test/chatid). The **orchestrator** sends
-the *verified* hourly summary; drawdown/position events are prefixed `🚨 ALERT:`.
-
-**Inbound (natural language)** — `notify/telegram_listen.py` long-polls Telegram;
-on a message from the authorized `TELEGRAM_CHAT_ID` it appends to
-`state/bot_inbox.jsonl` and EXITS — waking the orchestrator. Orchestrator reads the
-inbox, interprets the request, pulls live data, replies, acts, truncates the inbox,
-and relaunches the bridge.
-
-```
-python3 notify/telegram.py test            # outbound: connection ping
-python3 notify/telegram.py send "text"     # outbound: send to the configured chat
-python3 notify/telegram_listen.py          # inbound: run the NL bridge (background)
-```
+The hourly cron produces in-session summaries only. Do NOT send Telegram or
+start the bridge unless the user explicitly re-enables it.
 
 ## Status
 
-**LIVE on Gate.io testnet** (`mode: live`, `network: testnet` — real order execution,
-demo funds). Gate adapter (`exchanges/gate/adapter.py`, APIv4 / HMAC-SHA512) fully
-validated: `order → stop → cancel → close` round-trip clean. Trader runs **hourly**
-(session-only cron, fires at `:00`) across BTC/ETH/SOL/XRP with stop + take-profit
-on every position. Telegram is off; in-session summaries only.
+**LIVE on Binance testnet** (`mode: live`, `network: testnet` — real order
+execution, demo funds, $5,000 balance). Binance adapter
+(`exchanges/binance/adapter.py`, USDT-M futures, HMAC-SHA256) active.
+Coded trader runs **hourly** via `backtest/live_trader.py` across BTCUSDT/
+ETHUSDT/SOLUSDT/XRPUSDT. Telegram off; in-session summaries only.
 
-**Active strategy (2026-06-11):** four-layer TA on 15m candles — price action,
-order blocks, Fibonacci retracement, Elliott Wave. Entries require multi-framework
-confluence (≥2 layers). Testnet reloaded to $1,000; floor $900.
-
-Testnet host note: the old host `fx-api-testnet.gateio.ws` is dead (502); the live
-host is `api-testnet.gateapi.io`. Keys are valid. See `exchanges/gate/NOTES.md`.
+**Active strategies (2026-06-12):** validated on 5-yr Binance data.
+BTC → ema_cross (OOS Sharpe 1.80). ETH/SOL/XRP → donchian (OOS Sharpe 1.33–1.61).
+Baseline $5,000; floor $4,500.
 
 ## TODO
 
 Done:
-- [x] Gate adapter built, testnet host blocker resolved, live order round-trip validated.
+- [x] Gate adapter built and validated (retired 2026-06-12).
 - [x] Autonomous hourly trading with stop+take-profit on every position.
-- [x] Five BINDING EV RULES added after post-mortem (≥2:1 R:R, let winners run,
-      with-momentum, no mid-range, no churn).
-- [x] Strategy rebuilt (2026-06-11): 15m candles, order blocks, Fibonacci,
-      Elliott Wave — multi-framework confluence required to enter.
-- [x] Testnet reloaded to $1,000; new baseline/floor set ($1,000/$900).
+- [x] Five BINDING EV RULES added after post-mortem.
+- [x] LLM trader replaced with coded strategies after confirmed negative edge.
+- [x] Backtest pipeline built: Binance 5-yr data, IS/OOS split, Sharpe > 1 gate.
+- [x] Binance USDT-M futures adapter built; testnet validated ($5,000 demo).
+- [x] Strategies validated on 5-yr data: ema_cross (BTC), donchian (ETH/SOL/XRP).
 
 Next:
-- [ ] Build a track record under the new 4-layer TA strategy.
+- [ ] Build a live track record under the coded strategies.
 - [ ] Rotate the GitHub PAT embedded in the git remote URL before any real money.
-- [ ] Only then consider `network: mainnet` (real money) — an explicit user
-      decision, never the agent's.
+- [ ] Only then consider `network: mainnet` (real money) — explicit user decision.
