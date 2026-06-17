@@ -1,5 +1,6 @@
 # Secrets — NEVER commit
-secrets/
+secrets/*
+!secrets/.env.example
 .env
 *.env
 API_KEYS.md
