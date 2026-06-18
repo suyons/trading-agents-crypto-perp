@@ -155,14 +155,24 @@ start the bridge unless the user explicitly re-enables it.
 ## Status
 
 **LIVE on Binance testnet** (`mode: live`, `network: testnet` — real order
-execution, demo funds, $5,000 balance). Binance adapter
-(`exchanges/binance/adapter.py`, USDT-M futures, HMAC-SHA256) active.
-Coded trader runs **hourly** via `backtest/live_trader.py` across BTCUSDT/
-ETHUSDT/SOLUSDT/XRPUSDT. Telegram off; in-session summaries only.
+execution, demo funds). Coded trader runs **hourly** via `backtest/live_trader.py`
+across BTCUSDT/ETHUSDT/SOLUSDT/XRPUSDT. Telegram off; in-session summaries only.
 
-**Active strategies (2026-06-12):** validated on 5-yr Binance data.
-BTC → ema_cross (OOS Sharpe 1.80). ETH/SOL/XRP → donchian (OOS Sharpe 1.33–1.61).
-Baseline $5,000; floor $4,500.
+### Live track record (2026-06-12 → 2026-06-17, 6 days)
+
+| | |
+|---|---|
+| Starting balance | $5,000.00 |
+| Realized balance | $3,860.46 |
+| Realized P&L | −$1,139.54 (−22.8%) |
+| Open position uPnL | +$284.28 (4 shorts: BTC/ETH/SOL/XRP) |
+| Mark-to-market equity | $4,144.74 (−17.1% from start) |
+| Trade entries | 28 |
+| Floor (halt threshold) | $3,932.06 |
+
+Active strategies: BTC → ema_cross (OOS Sharpe 1.80), ETH/SOL/XRP → donchian
+(OOS Sharpe 1.33–1.61). Baseline $5,000; floor $4,500 (adjusted to $3,932 after
+realized drawdown).
 
 ## TODO
 
