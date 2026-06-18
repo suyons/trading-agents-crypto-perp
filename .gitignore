@@ -10,6 +10,9 @@ API_KEYS.md
 state/TRADE_STATE.md
 TRADE_STATE.md
 
+# Trade log (local-only; placeholder tracked, real entries are not)
+state/TRADE_LOG.md
+
 # Local Claude Code settings (personal; shared rules go in .claude/settings.json)
 .claude/settings.local.json
 
