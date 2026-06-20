@@ -63,12 +63,14 @@ Renko bricks, signal on a direction flip) clears the gate OOS on XRP (1.17) and
 BTC (1.12), but its incumbent on every symbol beats it (and BTC's renko IS
 Sharpe is negative). It stays in the registry as a backtestable strategy; it is
 **not** assigned a live symbol. The bot's old ollama "false-signal" filter is
-dropped — that judgement now belongs to the Claude Code orchestration layer, not
-the deterministic strategy.
+not part of the deterministic strategy; it returns as an *optional* runtime-agnostic
+veto (`backtest/signal_filter.py`, off by default) that the real-time runner and
+bar trader both honor — see [Optional reversal filter](#optional-reversal-filter-llm-veto).
 
 ## Coded trader contract
 
-- Signals come from backtested coded strategies only — no LLM interpretation.
+- Signals come from backtested coded strategies only — no LLM *generates* a
+  signal. (An LLM may optionally *veto* an atr_renko reversal — never create one.)
 - Every strategy must pass the deployment gate: **OOS Sharpe > 1.0** on a proper
   IS/OOS split before being assigned to a symbol.
 - Risk first: every position gets **both a stop loss and a take-profit**, placed
@@ -130,6 +132,42 @@ Next cycle the trader uses the new assignment — no other change needed. Assign
 strategy to a symbol only after it clears the gate there
 (`python3 backtest/run.py gate --strategy atr_renko --symbols XRPUSDT`).
 
+## Real-time Renko runner (`backtest/renko_live.py`)
+
+`atr_renko` is reversal-driven, so it also has a **second-by-second** runner
+(separate from the hourly bar trader) that ports the original Gate bot's
+behaviour onto the new adapter:
+
+```bash
+RENKO_SYMBOLS=XRPUSDT python3 backtest/renko_live.py
+```
+
+- Polls each symbol's price once a second via the active adapter, feeds ticks
+  into an ATR-sized Renko brick builder, and on a brick **direction reversal**
+  closes any opposite position and opens the new side (stop + TP atomic).
+- Same risk gates as `live_trader` (2% risk, R:R ≥ 1.9, drawdown floor) plus the
+  optional reversal filter below.
+- Symbols come from `RENKO_SYMBOLS` (comma-separated; empty → no-op). They must
+  **not** also be in `STRATEGY_MAP`, or the hourly trader would double-trade them.
+- Exchange is read from `EXCHANGE_CONFIG.md` — works on whatever adapter is active.
+
+### Optional reversal filter (LLM veto)
+
+A runtime-agnostic veto on `atr_renko` entries (the bar trader *and* the
+real-time runner both honor it). It replaces the retired Gate bot's ollama
+check; judgement now runs through whatever agent `FILTER_AGENT_CMD` names:
+
+```bash
+FILTER_AGENT_CMD="claude -p" RENKO_SYMBOLS=XRPUSDT python3 backtest/renko_live.py
+```
+
+The agent gets the proposed trade + recent brick sequence and replies `ENTER`
+or `SKIP`. **Unset → filter off** (pure deterministic signal). Fails **open**
+(any error/timeout/unclear reply → ENTER), since the deterministic signal has
+already cleared the gate, R:R, sizing and floor checks — the filter only ever
+*removes* trades. The runtime stays swappable: nothing bakes `claude` into a
+file or module name.
+
 ## Modes (set in `exchanges/EXCHANGE_CONFIG.md`)
 
 | switch    | values                | meaning |
@@ -151,7 +189,9 @@ which is an explicit user decision, never the agent's. Keys from `secrets/.env`.
 | `exchanges/binance/adapter.py` | active adapter: Binance USDT-M futures (HMAC-SHA256) |
 | `exchanges/gate/adapter.py` | retired Gate.io adapter (kept for reference) |
 | `backtest/strategies/` | coded strategies: `ema_cross`, `donchian`, `rsi_mr`, `atr_renko` |
-| `backtest/live_trader.py` | live execution: signal → size → order → log |
+| `backtest/live_trader.py` | hourly bar trader: signal → size → order → log |
+| `backtest/renko_live.py` | real-time atr_renko runner: 1s polling, brick-reversal trades |
+| `backtest/signal_filter.py` | optional runtime-agnostic LLM veto on reversals (`FILTER_AGENT_CMD`) |
 | `backtest/engine.py` | walk-forward backtester (IS/OOS split, Sharpe gate) |
 | `backtest/fetch.py` | OHLCV downloader (Binance mainnet public API) |
 | `backtest/run.py` | CLI: fetch / backtest / gate |
