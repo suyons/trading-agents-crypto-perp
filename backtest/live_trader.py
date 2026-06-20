@@ -29,8 +29,6 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from backtest.strategies import REGISTRY
-from backtest.strategies.atr_renko import recent_bricks
-from backtest import signal_filter
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -290,21 +288,6 @@ def main():
                 print(f"    SKIP — floor math: equity ${equity:.2f} - risk ${this_risk_usd:.2f} < floor ${floor:.2f}")
                 decisions.append(f"HOLD {symbol} (floor math fails)")
                 continue
-
-            # Optional reversal filter (last gate): an LLM veto on atr_renko brick
-            # reversals. Off unless FILTER_AGENT_CMD is set; fails open on error.
-            if strat_name == "atr_renko" and signal_filter.is_enabled():
-                sym_upnl = next(
-                    (float(p.get("unrealisedPnl", 0)) for p in raw_pos if p["symbol"] == symbol),
-                    0.0,
-                )
-                if signal_filter.should_skip(
-                    symbol, side, entry, stop, tp, equity, sym_upnl,
-                    recent_bricks(df, count=6),
-                ):
-                    print(f"    FILTERED — reversal vetoed as likely chop")
-                    decisions.append(f"HOLD {symbol} (filter vetoed reversal)")
-                    continue
 
             rr = reward / risk
             print(f"    ENTER {side}  qty={qty}  entry≈{entry:.5g}  "
