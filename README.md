@@ -58,6 +58,14 @@ out-of-sample split. Deployment gate: OOS Sharpe > 1.0.
 `rsi_mr` failed on all 4 symbols over 5 years (OOS Sharpe negative) — what
 appeared as Sharpe 3–5 on 28 days of Gate data was regime luck, not edge.
 
+`atr_renko` (ported from the retired `trading-atr-renko-gate` bot — ATR-sized
+Renko bricks, signal on a direction flip) clears the gate OOS on XRP (1.17) and
+BTC (1.12), but its incumbent on every symbol beats it (and BTC's renko IS
+Sharpe is negative). It stays in the registry as a backtestable strategy; it is
+**not** assigned a live symbol. The bot's old ollama "false-signal" filter is
+dropped — that judgement now belongs to the Claude Code orchestration layer, not
+the deterministic strategy.
+
 ## Coded trader contract
 
 - Signals come from backtested coded strategies only — no LLM interpretation.
@@ -86,6 +94,42 @@ python3 backtest/run.py gate [--strategy all]            # deployment gate check
 Data: Binance USDT-M futures public API (`fapi.binance.com`), 5–6 yr history.
 Cache: `backtest/cache/` (gitignored — regenerated on demand).
 
+## Running a specific strategy
+
+Valid `--strategy` values: `ema_cross`, `donchian`, `rsi_mr`, `atr_renko`, `all`.
+
+**Backtest** — run any strategy on any symbols, ad hoc (no live effect):
+
+```bash
+# atr_renko across all 4 pairs, IS/OOS metrics
+python3 backtest/run.py backtest --strategy atr_renko
+
+# the previous EMA strategy on BTC + ETH only, with the trade list
+python3 backtest/run.py backtest --strategy ema_cross --symbols BTCUSDT ETHUSDT --show-trades
+
+# compare every strategy on every pair
+python3 backtest/run.py backtest --strategy all
+```
+
+**Live (hourly trader)** — `backtest/live_trader.py` runs **one strategy per
+symbol**, set in its `STRATEGY_MAP`. To run `ema_cross` and `atr_renko` live at
+the same time, assign each to a different symbol (one position per asset, so two
+strategies can't share a symbol):
+
+```python
+# backtest/live_trader.py
+STRATEGY_MAP = {
+    "BTCUSDT": "ema_cross",   # previous EMA strategy
+    "ETHUSDT": "donchian",
+    "SOLUSDT": "donchian",
+    "XRPUSDT": "atr_renko",   # ported ATR-Renko strategy
+}
+```
+
+Next cycle the trader uses the new assignment — no other change needed. Assign a
+strategy to a symbol only after it clears the gate there
+(`python3 backtest/run.py gate --strategy atr_renko --symbols XRPUSDT`).
+
 ## Modes (set in `exchanges/EXCHANGE_CONFIG.md`)
 
 | switch    | values                | meaning |
@@ -106,7 +150,7 @@ which is an explicit user decision, never the agent's. Keys from `secrets/.env`.
 | `exchanges/INTERFACE.md` | CLI contract every adapter implements |
 | `exchanges/binance/adapter.py` | active adapter: Binance USDT-M futures (HMAC-SHA256) |
 | `exchanges/gate/adapter.py` | retired Gate.io adapter (kept for reference) |
-| `backtest/strategies/` | coded strategies: `ema_cross`, `donchian`, `rsi_mr` |
+| `backtest/strategies/` | coded strategies: `ema_cross`, `donchian`, `rsi_mr`, `atr_renko` |
 | `backtest/live_trader.py` | live execution: signal → size → order → log |
 | `backtest/engine.py` | walk-forward backtester (IS/OOS split, Sharpe gate) |
 | `backtest/fetch.py` | OHLCV downloader (Binance mainnet public API) |
@@ -184,6 +228,10 @@ Done:
 - [x] Backtest pipeline built: Binance 5-yr data, IS/OOS split, Sharpe > 1 gate.
 - [x] Binance USDT-M futures adapter built; testnet validated ($5,000 demo).
 - [x] Strategies validated on 5-yr data: ema_cross (BTC), donchian (ETH/SOL/XRP).
+- [x] Merged `trading-atr-renko-gate` bot in as the `atr_renko` coded strategy
+      (ollama filter dropped, Gate/discord plumbing dropped — adapter + Claude
+      Code orchestration replace them). Deployable OOS but beaten by incumbents.
 
 Next:
 - [ ] Build a live track record under the coded strategies.
+- [ ] Retire the standalone `trading-atr-renko-gate` repo (its edge now lives here).
