@@ -23,19 +23,36 @@ structure as hard dependencies:
 Orchestrator (main Claude Code session)
    │  audits cycles, never trades itself
    ▼
-Coded trader (backtest/live_trader.py)  ──reads──▶  backtest/strategies/
-   │  pure Python, deterministic, no LLM            state/TRADE_STATE.md
-   │  one decision cycle per hour
+Two trader paths, same risk rules + same adapter:
+
+  A) Bar trader  (backtest/live_trader.py)   ──reads──▶  backtest/strategies/
+     pure Python, deterministic, hourly                  state/TRADE_STATE.md
+     one decision cycle per hour on 15m bars
+
+  B) Renko runner (backtest/renko_live.py)   ──reads──▶  backtest/strategies/atr_renko
+     second-by-second price polling                      (tick-driven bricks)
+     trades on a brick direction reversal
+        │
+        └─ optional LLM veto ◀── backtest/signal_filter.py  (FILTER_AGENT_CMD)
+   │
    ▼
-Exchange adapter (exchanges/binance/adapter.py)  ──▶  Binance USDT-M futures API
+Exchange adapter (exchanges/<name>/adapter.py)  ──▶  Binance USDT-M futures API
    exchange-agnostic CLI defined in exchanges/INTERFACE.md
 ```
 
 - **Orchestrator ("Mission Control")** — coordinates and independently reconciles
-  results against the exchange. Does **not** place trades itself. Runs
-  `backtest/live_trader.py` each cycle.
-- **Coded trader** (`backtest/live_trader.py`) — pure Python, no LLM. Generates
-  signals from backtested strategies, applies risk rules, executes, and logs.
+  results against the exchange. Does **not** place trades itself.
+- **Bar trader** (`backtest/live_trader.py`) — deterministic Python; no LLM
+  generates signals (the optional reversal veto aside). One hourly cycle on
+  completed 15m bars: signal from a backtested strategy → risk rules → execute →
+  log. Runs the four pairs via `STRATEGY_MAP`.
+- **Renko runner** (`backtest/renko_live.py`) — real-time path **exclusive to
+  `atr_renko`**. Polls price every second, builds ATR-sized Renko bricks, and on
+  a brick **direction reversal** closes any opposite position and opens the new
+  side. Same risk gates as the bar trader.
+- **Reversal filter** (`backtest/signal_filter.py`) — *optional* runtime-agnostic
+  LLM veto on `atr_renko` reversals (both paths honor it). Off unless
+  `FILTER_AGENT_CMD` is set; it can only *remove* a trade, never create one.
 - **Exchange adapter** — the only exchange-specific code. Swapping venues means
   adding one `exchanges/<name>/adapter.py` that implements `INTERFACE.md`.
 
@@ -59,10 +76,19 @@ out-of-sample split. Deployment gate: OOS Sharpe > 1.0.
 appeared as Sharpe 3–5 on 28 days of Gate data was regime luck, not edge.
 
 `atr_renko` (ported from the retired `trading-atr-renko-gate` bot — ATR-sized
-Renko bricks, signal on a direction flip) clears the gate OOS on XRP (1.17) and
-BTC (1.12), but its incumbent on every symbol beats it (and BTC's renko IS
-Sharpe is negative). It stays in the registry as a backtestable strategy; it is
-**not** assigned a live symbol. The bot's old ollama "false-signal" filter is
+Renko bricks, signal on a direction flip) on the same 5–6 yr split:
+
+| Symbol  | IS Sharpe | OOS Sharpe | OOS trades | gate |
+|---------|-----------|------------|------------|------|
+| BTCUSDT | −0.56     | 1.12       | 1480       | OOS pass (IS fail) |
+| ETHUSDT | 0.57      | 0.97       | 1447       | fail |
+| SOLUSDT | 0.41      | 0.05       | 1327       | fail |
+| XRPUSDT | 0.70      | 1.17       | 1385       | OOS pass |
+
+It clears the OOS gate on XRP and BTC, but its incumbent on every symbol beats
+it (and BTC's renko IS Sharpe is negative). It stays in the registry as a
+backtestable strategy and powers the real-time runner; it is
+**not** assigned a live symbol in the hourly bar trader. The bot's old ollama "false-signal" filter is
 not part of the deterministic strategy; it returns as an *optional* runtime-agnostic
 veto (`backtest/signal_filter.py`, off by default) that the real-time runner and
 bar trader both honor — see [Optional reversal filter](#optional-reversal-filter-llm-veto).
@@ -214,8 +240,18 @@ python3 exchanges/binance/adapter.py klines BTCUSDT 15m 100
 python3 exchanges/binance/adapter.py order BTCUSDT BUY 0.01 --stop 58000 --tp 62000
 ```
 
-Trading runs hourly via `backtest/live_trader.py`. Keys go in `secrets/.env`
-(`BINANCE_API_KEY`, `BINANCE_SECRET_KEY`).
+The two trader paths:
+
+```bash
+# Hourly bar trader (all four pairs via STRATEGY_MAP)
+python3 backtest/live_trader.py
+
+# Real-time atr_renko runner (second-by-second; optional LLM veto)
+RENKO_SYMBOLS=XRPUSDT FILTER_AGENT_CMD="claude -p" python3 backtest/renko_live.py
+```
+
+Keys go in `secrets/.env` (`BINANCE_API_KEY`, `BINANCE_SECRET_KEY`). A symbol
+belongs to **one** path only — never both `STRATEGY_MAP` and `RENKO_SYMBOLS`.
 
 ## Safety
 
@@ -239,8 +275,13 @@ start the bridge unless the user explicitly re-enables it.
 ## Status
 
 **LIVE on Binance testnet** (`mode: live`, `network: testnet` — real order
-execution, demo funds). Coded trader runs **hourly** via `backtest/live_trader.py`
+execution, demo funds). Hourly bar trader runs via `backtest/live_trader.py`
 across BTCUSDT/ETHUSDT/SOLUSDT/XRPUSDT. Telegram off; in-session summaries only.
+
+The real-time `atr_renko` runner (`backtest/renko_live.py`) and the optional
+reversal filter are **built and self-checked but not enabled** — `RENKO_SYMBOLS`
+is unset and `FILTER_AGENT_CMD` is unset, so the live system is unchanged until
+a symbol is explicitly moved onto the renko path.
 
 ### Live track record (2026-06-12 → 2026-06-17, 6 days)
 
@@ -269,9 +310,15 @@ Done:
 - [x] Binance USDT-M futures adapter built; testnet validated ($5,000 demo).
 - [x] Strategies validated on 5-yr data: ema_cross (BTC), donchian (ETH/SOL/XRP).
 - [x] Merged `trading-atr-renko-gate` bot in as the `atr_renko` coded strategy
-      (ollama filter dropped, Gate/discord plumbing dropped — adapter + Claude
-      Code orchestration replace them). Deployable OOS but beaten by incumbents.
+      (Gate/discord plumbing dropped — adapter + orchestration replace them).
+      Deployable OOS but beaten by incumbents.
+- [x] Real-time `atr_renko` runner (`renko_live.py`): second-by-second polling,
+      brick-reversal close-and-reverse, via the exchange-agnostic adapter.
+- [x] Reversal filter (`signal_filter.py`): ollama veto replaced by a
+      runtime-agnostic LLM veto (`FILTER_AGENT_CMD`); fails open, off by default.
 
 Next:
 - [ ] Build a live track record under the coded strategies.
+- [ ] Decide whether to put a symbol on the real-time renko path (and pull it
+      from `STRATEGY_MAP`) once the runner has a paper/testnet track record.
 - [ ] Retire the standalone `trading-atr-renko-gate` repo (its edge now lives here).
